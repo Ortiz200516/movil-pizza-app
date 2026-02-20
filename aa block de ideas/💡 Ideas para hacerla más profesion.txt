@@ -1,0 +1,37 @@
+💡 Ideas para hacerla más profesional y moderna
+Aquí van ideas organizadas por impacto, de las más fáciles a las más avanzadas:
+🟢 Fáciles de implementar (1-2 días cada una)
+1. Pantalla de carga animada (Splash Screen)
+Una pantalla con el logo de la pizzería que aparece al abrir la app. Da imagen profesional al instante.
+2. Modo oscuro
+Que el usuario pueda cambiar entre fondo claro y oscuro. Está muy de moda y Flutter lo soporta de forma nativa.
+3. Historial de pedidos con filtros
+En el panel del admin, poder filtrar pedidos por fecha, estado o tipo. Ahora mismo muestra todo sin filtrar.
+4. Foto de perfil para cada usuario
+Subir imagen de perfil con Firebase Storage. Aparece en el header de cada panel.
+5. Número de pedido visible y legible
+En vez de mostrar #a3f2c1 (primeros 6 caracteres del ID), generar un número secuencial bonito: Pedido #0042.
+
+🟡 Impacto medio (3-5 días cada una)
+6. Notificaciones push en tiempo real
+Ya tienes firebase_messaging instalado. Cuando el cocinero marca un pedido como Listo, el mesero recibe una notificación. Cuando el repartidor sale, el cliente recibe "Tu pedido está en camino 🛵".
+7. Panel de estadísticas para el Admin (Dashboard)
+Gráficas del día: ventas por hora, productos más pedidos, ingresos totales. Usa el paquete fl_chart que es gratuito y muy visual.
+8. Fotos de los productos en el menú
+Subir imágenes reales de tus pizzas y hamburguesas a Firebase Storage. El menú se ve mucho más apetitoso con fotos reales.
+9. Sistema de mesas visual
+En vez de escribir el número de mesa, mostrar un mapa visual del restaurante donde el cliente toca la mesa donde está sentado.
+10. Tiempo estimado de espera en tiempo real
+Al hacer el pedido, mostrarle al cliente un contador: "Tu pedido estará listo en aproximadamente 20 minutos" que se actualice cuando el cocinero cambia el estado.
+
+🔵 Avanzadas y muy profesionales (1-2 semanas)
+11. Factura electrónica automática
+Cuando el repartidor entrega y verifica el código, generar automáticamente un PDF de la factura con los datos del cliente, los items y el total. Se puede enviar por WhatsApp o correo.
+12. Tracking GPS en vivo del repartidor
+Ya tienes geolocator instalado. El cliente puede ver en un mapa en tiempo real dónde está el repartidor que lleva su pedido, como Uber Eats.
+13. Integración con WhatsApp Business
+Al confirmar un pedido, enviar automáticamente un mensaje de WhatsApp al cliente con el resumen y el código de verificación. Mucho más cómodo que abrir la app.
+14. Sistema de propinas digitales
+En el carrito, el cliente puede agregar propina al mesero o repartidor (5%, 10%, 15% o monto personalizado). Se registra en el pedido.
+15. IA para recomendaciones
+"Los clientes que pidieron Pizza Pepperoni también pidieron Cerveza Pilsener" — recomendaciones automáticas basadas en historial de pedidos. Usa la API de Firestore para analizar pedidos anteriores.
