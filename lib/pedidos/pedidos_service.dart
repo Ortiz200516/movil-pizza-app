@@ -22,7 +22,7 @@ class PedidoService {
       if (user == null) throw Exception('Debes iniciar sesión');
 
       // Obtener datos del cliente desde Firestore
-      final userDoc = await _db.collection('usuarios').doc(user.uid).get();
+      final userDoc = await _db.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
       final nombreCliente = userData['nombres'] ?? userData['nombre'] ?? user.email ?? 'Cliente';
       final telefonoCliente = userData['telefono'];

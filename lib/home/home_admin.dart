@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_services.dart';
 import '../services/categoria_service.dart';
@@ -8,10 +9,39 @@ import '../models/producto_model.dart';
 import '../models/pedido_model.dart';
 import '../auth/login_page.dart';
 import '../admin/usuarios_page.dart';
+import '../admin/pedidos_admin_page.dart';
+import '../admin/reportes_page.dart';
+import '../admin/mesas_admin_page.dart';
+import '../admin/disponibilidad_page.dart';
+
+const _estadosActivos = ['Pendiente', 'Preparando', 'Listo', 'En camino'];
+
+Color _colorEstado(String estado) {
+  switch (estado) {
+    case 'Pendiente':    return Colors.orange;
+    case 'Preparando':   return Colors.blue;
+    case 'Listo':        return Colors.purple;
+    case 'En camino':    return Colors.indigo;
+    case 'Entregado':    return Colors.green;
+    case 'Cancelado':    return Colors.red;
+    default:             return Colors.grey;
+  }
+}
+
+IconData _iconoEstado(String estado) {
+  switch (estado) {
+    case 'Pendiente':    return Icons.access_time;
+    case 'Preparando':   return Icons.restaurant;
+    case 'Listo':        return Icons.done_all;
+    case 'En camino':    return Icons.delivery_dining;
+    case 'Entregado':    return Icons.check_circle;
+    case 'Cancelado':    return Icons.cancel;
+    default:             return Icons.help_outline;
+  }
+}
 
 class HomeAdmin extends StatefulWidget {
   const HomeAdmin({super.key});
-
   @override
   State<HomeAdmin> createState() => _HomeAdminState();
 }
@@ -22,7 +52,6 @@ class _HomeAdminState extends State<HomeAdmin> {
   final ProductoService _productoService = ProductoService();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Lista de iconos disponibles para categorías
   final List<String> iconosDisponibles = [
     '🍕', '🍔', '🌮', '🍗', '🥤', '🍺', '🍰', '🍪',
     '🥗', '🍝', '🍟', '🌭', '🥪', '🍩', '☕', '🧃'
@@ -31,7 +60,7 @@ class _HomeAdminState extends State<HomeAdmin> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2, // Solo 2 pestañas: Categorías y Productos
+      length: 6,
       child: Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
@@ -44,26 +73,28 @@ class _HomeAdminState extends State<HomeAdmin> {
             onPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
           bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             indicatorColor: Colors.white,
             indicatorWeight: 3,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             tabs: [
-              Tab(icon: Icon(Icons.category, size: 24), text: 'Categorías'),
-              Tab(icon: Icon(Icons.inventory, size: 24), text: 'Productos'),
+              Tab(icon: Icon(Icons.category, size: 20), text: 'Categorías'),
+              Tab(icon: Icon(Icons.inventory, size: 20), text: 'Productos'),
+              Tab(icon: Icon(Icons.receipt_long, size: 20), text: 'Pedidos'),
+              Tab(icon: Icon(Icons.bar_chart, size: 20), text: 'Reportes'),
+              Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Mesas'),
+              Tab(icon: Icon(Icons.toggle_on, size: 20), text: 'Disponibilidad'),
             ],
           ),
           actions: [
             IconButton(
               icon: const Icon(Icons.people),
               tooltip: 'Gestionar Usuarios',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UsuariosPage()),
-                );
-              },
+              onPressed: () => Navigator.push(
+                context, MaterialPageRoute(builder: (_) => const UsuariosPage())),
             ),
             IconButton(
               icon: const Icon(Icons.logout),
@@ -72,9 +103,7 @@ class _HomeAdminState extends State<HomeAdmin> {
                 await _authService.logout();
                 if (context.mounted) {
                   Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginPage()),
-                  );
+                    context, MaterialPageRoute(builder: (_) => const LoginPage()));
                 }
               },
             ),
@@ -85,42 +114,36 @@ class _HomeAdminState extends State<HomeAdmin> {
           children: [
             _buildCategoriasTab(),
             _buildProductosTab(),
+            PedidosAdminPage(),
+            ReportesPage(),
+            MesasAdminPage(),
+            DisponibilidadPage(),
           ],
         ),
         floatingActionButton: Builder(
           builder: (context) {
-            final tabController = DefaultTabController.of(context);
+            final tab = DefaultTabController.of(context);
             return AnimatedBuilder(
-              animation: tabController,
-              builder: (context, child) {
-                final currentTab = tabController.index;
-                
-                String label;
-                IconData icon;
-                VoidCallback onPressed;
-                
-                switch (currentTab) {
-                  case 0: // Categorías
-                    label = 'Agregar Categoría';
-                    icon = Icons.add;
-                    onPressed = _mostrarDialogoAgregarCategoria;
-                    break;
-                  case 1: // Productos
-                    label = 'Agregar Producto';
-                    icon = Icons.add;
-                    onPressed = _mostrarDialogoAgregarProducto;
-                    break;
-                  default:
-                    return const SizedBox.shrink();
+              animation: tab,
+              builder: (context, _) {
+                if (tab.index == 0) {
+                  return FloatingActionButton.extended(
+                    onPressed: _mostrarDialogoAgregarCategoria,
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar Categoría'),
+                  );
+                } else if (tab.index == 1) {
+                  return FloatingActionButton.extended(
+                    onPressed: _mostrarDialogoAgregarProducto,
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar Producto'),
+                  );
                 }
-
-                return FloatingActionButton.extended(
-                  onPressed: onPressed,
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                  icon: Icon(icon),
-                  label: Text(label),
-                );
+                return const SizedBox.shrink();
               },
             );
           },
@@ -129,12 +152,10 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  // Dashboard en el Drawer
   Widget _buildDashboardDrawer() {
     return Drawer(
       child: Column(
         children: [
-          // Header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -151,57 +172,31 @@ class _HomeAdminState extends State<HomeAdmin> {
                 children: [
                   const Icon(Icons.dashboard, color: Colors.white, size: 40),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Dashboard en Tiempo Real',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    _authService.currentUserEmail ?? '',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
+                  const Text('Dashboard en Tiempo Real',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(_authService.currentUserEmail ?? '',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
           ),
-
-          // Dashboard Content
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Resumen de Cocina
-                const Text(
-                  '👨‍🍳 Cocina',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                const Text('👨‍🍳 Cocina', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 _buildCocinaStatus(),
-                
                 const SizedBox(height: 20),
                 const Divider(),
-                const SizedBox(height: 20),
-
-                // Resumen de Repartidores
-                const Text(
-                  '🛵 Repartidores',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                const SizedBox(height: 12),
+                const Text('🛵 Repartidores', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 _buildRepartidoresStatus(),
-
                 const SizedBox(height: 20),
                 const Divider(),
-                const SizedBox(height: 20),
-
-                // Pedidos Recientes
-                const Text(
-                  '📦 Pedidos Recientes',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                const SizedBox(height: 12),
+                const Text('📦 Pedidos Recientes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 _buildPedidosRecientes(),
               ],
@@ -216,49 +211,30 @@ class _HomeAdminState extends State<HomeAdmin> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('pedidos')
-          .where('estado', whereIn: ['Pendiente', 'En preparación'])
+          .where('estado', whereIn: ['Pendiente', 'Preparando'])
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-
+        if (!snapshot.hasData) return const _LoadingCard();
         final pedidos = snapshot.data!.docs;
-        final enPreparacion = pedidos.where((p) => p['estado'] == 'En preparación').length;
+        final enPreparacion = pedidos.where((p) => p['estado'] == 'Preparando').length;
         final pendientes = pedidos.where((p) => p['estado'] == 'Pendiente').length;
-
         return Card(
           color: Colors.orange.shade50,
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.restaurant, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$enPreparacion en preparación',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.pending, color: Colors.grey, size: 20),
-                    const SizedBox(width: 8),
-                    Text('$pendientes pendientes'),
-                  ],
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.restaurant, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text('$enPreparacion en preparación', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.pending, color: Colors.grey, size: 18),
+                const SizedBox(width: 8),
+                Text('$pendientes pendientes'),
+              ]),
+            ]),
           ),
         );
       },
@@ -272,72 +248,44 @@ class _HomeAdminState extends State<HomeAdmin> {
           .where('estado', isEqualTo: 'En camino')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-
-        final pedidosEnCamino = snapshot.data!.docs;
-
-        if (pedidosEnCamino.isEmpty) {
+        if (!snapshot.hasData) return const _LoadingCard();
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
           return Card(
             color: Colors.blue.shade50,
             child: const Padding(
-              padding: EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(Icons.delivery_dining, color: Colors.blue),
-                  SizedBox(width: 8),
-                  Text('No hay entregas en camino'),
-                ],
-              ),
+              padding: EdgeInsets.all(14),
+              child: Row(children: [
+                Icon(Icons.delivery_dining, color: Colors.blue),
+                SizedBox(width: 8),
+                Text('No hay entregas en camino'),
+              ]),
             ),
           );
         }
-
         return Column(
-          children: pedidosEnCamino.map((doc) {
+          children: docs.map((doc) {
             final repartidorId = doc['repartidorId'];
             return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('usuarios')
-                  .doc(repartidorId)
-                  .get(),
-              builder: (context, userSnap) {
-                final repartidorNombre = userSnap.hasData 
-                    ? userSnap.data!['email']?.split('@')[0] ?? 'Repartidor'
+              future: FirebaseFirestore.instance.collection('users').doc(repartidorId).get(),
+              builder: (context, snap) {
+                final nombre = snap.hasData
+                    ? snap.data!['email']?.split('@')[0] ?? 'Repartidor'
                     : 'Repartidor';
-
                 return Card(
                   color: Colors.indigo.shade50,
-                  margin: const EdgeInsets.only(bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 6),
                   child: ListTile(
                     leading: const CircleAvatar(
                       backgroundColor: Colors.indigo,
-                      child: Icon(Icons.delivery_dining, color: Colors.white, size: 20),
+                      child: Icon(Icons.delivery_dining, color: Colors.white, size: 18),
                     ),
-                    title: Text(
-                      repartidorNombre,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    subtitle: Text(
-                      'Entregando pedido',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                    ),
+                    title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: const Text('Entregando pedido', style: TextStyle(fontSize: 12)),
                     trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'En camino',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(10)),
+                      child: const Text('En camino', style: TextStyle(color: Colors.white, fontSize: 10)),
                     ),
                   ),
                 );
@@ -357,57 +305,35 @@ class _HomeAdminState extends State<HomeAdmin> {
           .limit(5)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
-        }
-
-        final pedidos = snapshot.data!.docs;
-
-        if (pedidos.isEmpty) {
+        if (!snapshot.hasData) return const _LoadingCard();
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
           return Card(
             color: Colors.grey.shade50,
-            child: const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No hay pedidos recientes'),
-            ),
+            child: const Padding(padding: EdgeInsets.all(14), child: Text('No hay pedidos recientes')),
           );
         }
-
         return Column(
-          children: pedidos.map((doc) {
-            final pedido = PedidoModel.fromFirestore(doc.id, doc.data() as Map<String, dynamic>);
-            
-            Color estadoColor = Colors.grey;
-            if (pedido.estado == 'Pendiente') estadoColor = Colors.orange;
-            if (pedido.estado == 'En preparación') estadoColor = Colors.blue;
-            if (pedido.estado == 'Listo') estadoColor = Colors.purple;
-            if (pedido.estado == 'En camino') estadoColor = Colors.indigo;
-            if (pedido.estado == 'Entregado') estadoColor = Colors.green;
-
+          children: docs.map((doc) {
+            final p = PedidoModel.fromFirestore(doc.id, doc.data() as Map<String, dynamic>);
+            final color = _colorEstado(p.estado);
+            final diff = DateTime.now().difference(p.fecha);
+            final tiempo = diff.inMinutes < 60
+                ? '${diff.inMinutes}m'
+                : diff.inHours < 24 ? '${diff.inHours}h' : '${diff.inDays}d';
             return Card(
-              margin: const EdgeInsets.only(bottom: 8),
+              margin: const EdgeInsets.only(bottom: 6),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: estadoColor.withOpacity(0.2),
-                  child: Icon(Icons.receipt, color: estadoColor, size: 20),
+                  backgroundColor: color.withOpacity(0.15),
+                  child: Icon(_iconoEstado(p.estado), color: color, size: 18),
                 ),
-                title: Text(
-                  '\$${pedido.total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                subtitle: Text(
-                  '${pedido.items.length} items - ${pedido.estado}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: Text(
-                  _formatTime(pedido.fecha),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
+                title: Text('\$${p.total.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text('${p.items.length} items · ${p.estado}',
+                    style: const TextStyle(fontSize: 12)),
+                trailing: Text(tiempo,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
               ),
             );
           }).toList(),
@@ -416,14 +342,6 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  String _formatTime(DateTime fecha) {
-    final diff = DateTime.now().difference(fecha);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    return '${diff.inDays}d';
-  }
-
-  // ==================== PESTAÑA 1: CATEGORÍAS ====================
   Widget _buildCategoriasTab() {
     return StreamBuilder<List<CategoriaModel>>(
       stream: _categoriaService.obtenerCategorias(),
@@ -431,140 +349,74 @@ class _HomeAdminState extends State<HomeAdmin> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.category, size: 100, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                Text(
-                  'No hay categorías creadas',
-                  style: TextStyle(fontSize: 20, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Toca el botón ➕ para agregar tu primera categoría',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
-              ],
-            ),
+          return _EmptyState(
+            icono: Icons.category,
+            mensaje: 'No hay categorías creadas',
+            sub: 'Toca el botón ➕ para agregar tu primera categoría',
           );
         }
-
-        final categorias = snapshot.data!;
-        final disponibles = categorias.where((c) => c.disponible).length;
-
-        return Column(
-          children: [
-            // Estadísticas
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.purple.shade50,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatCard('Total', categorias.length.toString(), Icons.category, Colors.purple),
-                  _buildStatCard('Disponibles', disponibles.toString(), Icons.check_circle, Colors.green),
-                  _buildStatCard('Ocultas', (categorias.length - disponibles).toString(), Icons.visibility_off, Colors.orange),
-                ],
-              ),
+        final cats = snapshot.data!;
+        final disponibles = cats.where((c) => c.disponible).length;
+        return Column(children: [
+          _StatsHeader(stats: [
+            _StatData('Total', cats.length.toString(), Icons.category, Colors.purple),
+            _StatData('Visibles', disponibles.toString(), Icons.check_circle, Colors.green),
+            _StatData('Ocultas', (cats.length - disponibles).toString(), Icons.visibility_off, Colors.orange),
+          ]),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              itemCount: cats.length,
+              itemBuilder: (_, i) => _buildCategoriaCard(cats[i]),
             ),
-            // Lista
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: categorias.length,
-                itemBuilder: (context, index) {
-                  final categoria = categorias[index];
-                  return _buildCategoriaCard(categoria);
-                },
-              ),
-            ),
-          ],
-        );
+          ),
+        ]);
       },
     );
   }
 
-  Widget _buildCategoriaCard(CategoriaModel categoria) {
+  Widget _buildCategoriaCard(CategoriaModel cat) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _mostrarDialogoEditarCategoria(categoria),
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _mostrarDialogoEditarCategoria(cat),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Icono
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: categoria.disponible ? Colors.purple.shade100 : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    categoria.icono,
-                    style: const TextStyle(fontSize: 32),
-                  ),
-                ),
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: cat.disponible ? Colors.purple.shade100 : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 16),
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      categoria.nombre,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildChip(
-                          categoria.disponible ? 'Visible' : 'Oculta',
-                          categoria.disponible ? Colors.green : Colors.orange,
-                        ),
-                        _buildChip(
-                          'Orden: ${categoria.orden}',
-                          Colors.blue,
-                        ),
-                        if (categoria.requiereCocina)
-                          _buildChip('Requiere cocina', Colors.purple),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Acciones
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _confirmarEliminarCategoria(categoria),
-              ),
-            ],
-          ),
+              child: Center(child: Text(cat.icono, style: const TextStyle(fontSize: 28))),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(cat.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  _Chip(cat.disponible ? 'Visible' : 'Oculta', cat.disponible ? Colors.green : Colors.orange),
+                  _Chip('Orden: ${cat.orden}', Colors.blue),
+                  if (cat.requiereCocina) _Chip('Cocina', Colors.purple),
+                ]),
+              ]),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _confirmarEliminarCategoria(cat),
+            ),
+          ]),
         ),
       ),
     );
   }
 
-  // ==================== PESTAÑA 2: PRODUCTOS ====================
   Widget _buildProductosTab() {
     return StreamBuilder<List<ProductoModel>>(
       stream: _productoService.obtenerProductos(),
@@ -572,325 +424,123 @@ class _HomeAdminState extends State<HomeAdmin> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.inventory, size: 100, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                Text(
-                  'No hay productos creados',
-                  style: TextStyle(fontSize: 20, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Toca el botón ➕ para agregar tu primer producto',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
-              ],
-            ),
+          return _EmptyState(
+            icono: Icons.inventory,
+            mensaje: 'No hay productos creados',
+            sub: 'Toca el botón ➕ para agregar tu primer producto',
           );
         }
-
-        final productos = snapshot.data!;
-        final disponibles = productos.where((p) => p.disponible).length;
-
-        return Column(
-          children: [
-            // Estadísticas
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.purple.shade50,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatCard('Total', productos.length.toString(), Icons.inventory, Colors.purple),
-                  _buildStatCard('Disponibles', disponibles.toString(), Icons.check_circle, Colors.green),
-                  _buildStatCard('Agotados', (productos.length - disponibles).toString(), Icons.remove_circle, Colors.red),
-                ],
-              ),
+        final prods = snapshot.data!;
+        final disponibles = prods.where((p) => p.disponible).length;
+        return Column(children: [
+          _StatsHeader(stats: [
+            _StatData('Total', prods.length.toString(), Icons.inventory, Colors.purple),
+            _StatData('Disponibles', disponibles.toString(), Icons.check_circle, Colors.green),
+            _StatData('Agotados', (prods.length - disponibles).toString(), Icons.remove_circle, Colors.red),
+          ]),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              itemCount: prods.length,
+              itemBuilder: (_, i) => _buildProductoCard(prods[i]),
             ),
-            // Lista
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: productos.length,
-                itemBuilder: (context, index) {
-                  final producto = productos[index];
-                  return _buildProductoCard(producto);
-                },
-              ),
-            ),
-          ],
-        );
+          ),
+        ]);
       },
     );
   }
 
-  Widget _buildProductoCard(ProductoModel producto) {
+  Widget _buildProductoCard(ProductoModel p) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _mostrarDialogoEditarProducto(producto),
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _mostrarDialogoEditarProducto(p),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Icono
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: producto.disponible ? Colors.purple.shade100 : Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.fastfood,
-                  color: producto.disponible ? Colors.purple : Colors.grey,
-                  size: 32,
-                ),
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: p.disponible ? Colors.purple.shade100 : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 16),
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      producto.nombre,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      producto.descripcion,
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildChip(
-                          '\$${producto.precio.toStringAsFixed(2)}',
-                          Colors.green,
-                        ),
-                        if (producto.categoria.isNotEmpty)
-                          _buildChip(
-                            producto.categoria,
-                            Colors.blue,
-                          ),
-                        
-                          _buildChip('Varios tamaños', Colors.orange),
-                        
-                          _buildChip('Combo', Colors.purple),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Acciones
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () => _confirmarEliminarProducto(producto),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== WIDGETS AUXILIARES ====================
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+              child: Center(child: Text(p.icono, style: const TextStyle(fontSize: 28))),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 3),
+                Text(p.descripcion,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  _Chip('\$${p.precio.toStringAsFixed(2)}', Colors.green),
+                  _Chip(p.categoria, Colors.blue),
+                  if (!p.disponible) _Chip('Agotado', Colors.red),
+                ]),
+              ]),
             ),
-          ],
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _confirmarEliminarProducto(p),
+            ),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _buildChip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // ==================== DIÁLOGOS - CATEGORÍAS ====================
   void _mostrarDialogoAgregarCategoria() {
     final nombreCtrl = TextEditingController();
-    String iconoSeleccionado = iconosDisponibles[0];
+    String iconoSel = iconosDisponibles[0];
     int orden = 0;
     bool requiereCocina = true;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
           title: const Text('➕ Agregar Categoría'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                    prefixIcon: Icon(Icons.category),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Selecciona un icono:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: iconosDisponibles.map((icono) {
-                    final isSelected = icono == iconoSeleccionado;
-                    return InkWell(
-                      onTap: () {
-                        setStateDialog(() {
-                          iconoSeleccionado = icono;
-                        });
-                      },
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: isSelected ? Colors.purple.shade100 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? Colors.purple : Colors.grey.shade300,
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(icono, style: const TextStyle(fontSize: 24)),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Orden de aparición',
-                    prefixIcon: Icon(Icons.sort),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    orden = int.tryParse(value) ?? 0;
-                  },
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Requiere cocina'),
-                  subtitle: const Text('Marca si los productos pasan por cocina'),
-                  value: requiereCocina,
-                  onChanged: (value) {
-                    setStateDialog(() {
-                      requiereCocina = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _campo(nombreCtrl, 'Nombre', Icons.category),
+              const SizedBox(height: 14),
+              const Text('Selecciona un icono:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _selectorIconos(iconoSel, (i) => setD(() => iconoSel = i)),
+              const SizedBox(height: 14),
+              TextField(
+                decoration: const InputDecoration(labelText: 'Orden de aparición', prefixIcon: Icon(Icons.sort), border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
+                onChanged: (v) => orden = int.tryParse(v) ?? 0,
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                title: const Text('Requiere cocina'),
+                value: requiereCocina,
+                onChanged: (v) => setD(() => requiereCocina = v),
+              ),
+            ]),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () async {
-                if (nombreCtrl.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('⚠️ Ingresa un nombre')),
-                  );
-                  return;
-                }
-
-                try {
-                  final categoria = CategoriaModel(
-                    id: '',
-                    nombre: nombreCtrl.text,
-                    icono: iconoSeleccionado,
-                    disponible: true,
-                    orden: orden,
-                    requiereCocina: requiereCocina,
-                  );
-
-                  await _categoriaService.agregarCategoria(categoria);
-
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✅ Categoría agregada'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('❌ Error: $e')),
-                  );
-                }
+                if (nombreCtrl.text.isEmpty) return;
+                await _categoriaService.agregarCategoria(CategoriaModel(
+                  id: '', nombre: nombreCtrl.text, icono: iconoSel,
+                  disponible: true, orden: orden, requiereCocina: requiereCocina,
+                ));
+                if (ctx.mounted) Navigator.pop(ctx);
+                _snack('✅ Categoría agregada', Colors.green);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Agregar'),
             ),
           ],
@@ -899,135 +549,48 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  void _mostrarDialogoEditarCategoria(CategoriaModel categoria) {
-    final nombreCtrl = TextEditingController(text: categoria.nombre);
-    String iconoSeleccionado = categoria.icono;
-    int orden = categoria.orden;
-    bool disponible = categoria.disponible;
-    bool requiereCocina = categoria.requiereCocina;
+  void _mostrarDialogoEditarCategoria(CategoriaModel cat) {
+    final nombreCtrl = TextEditingController(text: cat.nombre);
+    String iconoSel = cat.icono;
+    int orden = cat.orden;
+    bool disponible = cat.disponible;
+    bool requiereCocina = cat.requiereCocina;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
           title: const Text('✏️ Editar Categoría'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                    prefixIcon: Icon(Icons.category),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Icono:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: iconosDisponibles.map((icono) {
-                    final isSelected = icono == iconoSeleccionado;
-                    return InkWell(
-                      onTap: () {
-                        setStateDialog(() {
-                          iconoSeleccionado = icono;
-                        });
-                      },
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: isSelected ? Colors.purple.shade100 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? Colors.purple : Colors.grey.shade300,
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(icono, style: const TextStyle(fontSize: 24)),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Orden',
-                    prefixIcon: Icon(Icons.sort),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  controller: TextEditingController(text: orden.toString()),
-                  onChanged: (value) {
-                    orden = int.tryParse(value) ?? 0;
-                  },
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Visible'),
-                  value: disponible,
-                  onChanged: (value) {
-                    setStateDialog(() {
-                      disponible = value;
-                    });
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('Requiere cocina'),
-                  value: requiereCocina,
-                  onChanged: (value) {
-                    setStateDialog(() {
-                      requiereCocina = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _campo(nombreCtrl, 'Nombre', Icons.category),
+              const SizedBox(height: 14),
+              const Text('Icono:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _selectorIconos(iconoSel, (i) => setD(() => iconoSel = i)),
+              const SizedBox(height: 14),
+              TextField(
+                decoration: const InputDecoration(labelText: 'Orden', prefixIcon: Icon(Icons.sort), border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
+                controller: TextEditingController(text: orden.toString()),
+                onChanged: (v) => orden = int.tryParse(v) ?? 0,
+              ),
+              SwitchListTile(title: const Text('Visible'), value: disponible, onChanged: (v) => setD(() => disponible = v)),
+              SwitchListTile(title: const Text('Requiere cocina'), value: requiereCocina, onChanged: (v) => setD(() => requiereCocina = v)),
+            ]),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () async {
-                try {
-                  final categoriaActualizada = CategoriaModel(
-                    id: categoria.id,
-                    nombre: nombreCtrl.text,
-                    icono: iconoSeleccionado,
-                    disponible: disponible,
-                    orden: orden,
-                    requiereCocina: requiereCocina,
-                  );
-
-                  await _categoriaService.editarCategoria(categoria.id, categoriaActualizada);
-
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✅ Categoría actualizada'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('❌ Error: $e')),
-                  );
-                }
+                await _categoriaService.editarCategoria(cat.id, CategoriaModel(
+                  id: cat.id, nombre: nombreCtrl.text, icono: iconoSel,
+                  disponible: disponible, orden: orden, requiereCocina: requiereCocina,
+                ));
+                if (ctx.mounted) Navigator.pop(ctx);
+                _snack('✅ Categoría actualizada', Colors.green);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Guardar'),
             ),
           ],
@@ -1036,166 +599,66 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  void _confirmarEliminarCategoria(CategoriaModel categoria) async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('⚠️ Confirmar Eliminación'),
-        content: Text('¿Eliminar la categoría "${categoria.nombre}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmar == true) {
-      await _categoriaService.eliminarCategoria(categoria.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Categoría eliminada'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+  void _confirmarEliminarCategoria(CategoriaModel cat) async {
+    final ok = await _confirmar('¿Eliminar la categoría "${cat.nombre}"?');
+    if (ok) {
+      await _categoriaService.eliminarCategoria(cat.id);
+      _snack('✅ Categoría eliminada', Colors.green);
     }
   }
 
-  // ==================== DIÁLOGOS - PRODUCTOS ====================
   void _mostrarDialogoAgregarProducto() async {
     final nombreCtrl = TextEditingController();
     final precioCtrl = TextEditingController();
-    final descripcionCtrl = TextEditingController();
-    String? categoriaSeleccionada;
-    
+    final descCtrl = TextEditingController();
+    String? catSel;
     final categorias = await _categoriaService.obtenerCategorias().first;
-
     if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
           title: const Text('➕ Agregar Producto'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                    prefixIcon: Icon(Icons.fastfood),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descripcionCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Descripción',
-                    prefixIcon: Icon(Icons.description),
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: precioCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Precio',
-                    prefixIcon: Icon(Icons.attach_money),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Categoría',
-                    prefixIcon: Icon(Icons.category),
-                    border: OutlineInputBorder(),
-                  ),
-                  value: categoriaSeleccionada,
-                  items: categorias.map((cat) {
-                    return DropdownMenuItem(
-                      value: cat.id,
-                      child: Row(
-                        children: [
-                          Text(cat.icono, style: const TextStyle(fontSize: 20)),
-                          const SizedBox(width: 8),
-                          Text(cat.nombre),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setStateDialog(() {
-                      categoriaSeleccionada = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _campo(nombreCtrl, 'Nombre', Icons.fastfood),
+              const SizedBox(height: 12),
+              _campo(descCtrl, 'Descripción', Icons.description, maxLines: 3),
+              const SizedBox(height: 12),
+              _campo(precioCtrl, 'Precio', Icons.attach_money, tipo: TextInputType.number),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
+                value: catSel,
+                items: categorias.map((c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),
+                )).toList(),
+                onChanged: (v) => setD(() => catSel = v),
+              ),
+            ]),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () async {
-                if (nombreCtrl.text.isEmpty || precioCtrl.text.isEmpty || categoriaSeleccionada == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('⚠️ Completa todos los campos')),
-                  );
+                if (nombreCtrl.text.isEmpty || precioCtrl.text.isEmpty || catSel == null) {
+                  _snack('⚠️ Completa todos los campos', Colors.orange);
                   return;
                 }
-
-                try {
-                  final categoria = categorias.firstWhere((c) => c.id == categoriaSeleccionada);
-                  
-                  final producto = ProductoModel(
-                    id: '',
-                    nombre: nombreCtrl.text,
-                    precio: double.parse(precioCtrl.text),
-                    descripcion: descripcionCtrl.text,
-                    disponible: true,
-                    categoria: categoria.nombre,
-                  );
-
-                  await _productoService.agregarProducto(producto);
-
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✅ Producto agregado'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('❌ Error: $e')),
-                  );
-                }
+                final categoria = categorias.firstWhere((c) => c.id == catSel);
+                await _productoService.agregarProducto(ProductoModel(
+                  id: '', nombre: nombreCtrl.text,
+                  precio: double.tryParse(precioCtrl.text) ?? 0,
+                  descripcion: descCtrl.text,
+                  disponible: true,
+                  categoria: categoria.nombre,
+                ));
+                if (ctx.mounted) Navigator.pop(ctx);
+                _snack('✅ Producto agregado', Colors.green);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Agregar'),
             ),
           ],
@@ -1204,133 +667,59 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  void _mostrarDialogoEditarProducto(ProductoModel producto) async {
-    final nombreCtrl = TextEditingController(text: producto.nombre);
-    final precioCtrl = TextEditingController(text: producto.precio.toString());
-    final descripcionCtrl = TextEditingController(text: producto.descripcion);
-    String categoriaSeleccionada = producto.categoria;
-    bool disponible = producto.disponible;
-    
+  void _mostrarDialogoEditarProducto(ProductoModel prod) async {
+    final nombreCtrl = TextEditingController(text: prod.nombre);
+    final precioCtrl = TextEditingController(text: prod.precio.toString());
+    final descCtrl = TextEditingController(text: prod.descripcion);
+    String catSel = prod.categoria;
+    bool disponible = prod.disponible;
     final categorias = await _categoriaService.obtenerCategorias().first;
-
     if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
           title: const Text('✏️ Editar Producto'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre',
-                    prefixIcon: Icon(Icons.fastfood),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descripcionCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Descripción',
-                    prefixIcon: Icon(Icons.description),
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: precioCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Precio',
-                    prefixIcon: Icon(Icons.attach_money),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Categoría',
-                    prefixIcon: Icon(Icons.category),
-                    border: OutlineInputBorder(),
-                  ),
-                  value: categoriaSeleccionada,
-                  items: categorias.map((cat) {
-                    return DropdownMenuItem(
-                      value: cat.id,
-                      child: Row(
-                        children: [
-                          Text(cat.icono, style: const TextStyle(fontSize: 20)),
-                          const SizedBox(width: 8),
-                          Text(cat.nombre),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setStateDialog(() {
-                      categoriaSeleccionada = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Disponible'),
-                  value: disponible,
-                  onChanged: (value) {
-                    setStateDialog(() {
-                      disponible = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _campo(nombreCtrl, 'Nombre', Icons.fastfood),
+              const SizedBox(height: 12),
+              _campo(descCtrl, 'Descripción', Icons.description, maxLines: 3),
+              const SizedBox(height: 12),
+              _campo(precioCtrl, 'Precio', Icons.attach_money, tipo: TextInputType.number),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
+                value: categorias.any((c) => c.id == catSel || c.nombre == catSel) ? catSel : null,
+                items: categorias.map((c) => DropdownMenuItem(
+                  value: c.nombre,
+                  child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),
+                )).toList(),
+                onChanged: (v) => setD(() => catSel = v!),
+              ),
+              SwitchListTile(
+                title: const Text('Disponible'),
+                value: disponible,
+                onChanged: (v) => setD(() => disponible = v),
+              ),
+            ]),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () async {
-                try {
-                  final categoria = categorias.firstWhere((c) => c.id == categoriaSeleccionada);
-                  
-                  final productoActualizado = ProductoModel(
-                    id: producto.id,
-                    nombre: nombreCtrl.text,
-                    precio: double.parse(precioCtrl.text),
-                    descripcion: descripcionCtrl.text,
-                    disponible: disponible,
-                    categoria: categoria.nombre,
-                  );
-
-                  await _productoService.editarProducto(producto.id, productoActualizado);
-
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✅ Producto actualizado'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('❌ Error: $e')),
-                  );
-                }
+                await _productoService.editarProducto(prod.id, ProductoModel(
+                  id: prod.id, nombre: nombreCtrl.text,
+                  precio: double.tryParse(precioCtrl.text) ?? prod.precio,
+                  descripcion: descCtrl.text,
+                  disponible: disponible,
+                  categoria: catSel,
+                ));
+                if (ctx.mounted) Navigator.pop(ctx);
+                _snack('✅ Producto actualizado', Colors.green);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-              ),
               child: const Text('Guardar'),
             ),
           ],
@@ -1339,39 +728,137 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  void _confirmarEliminarProducto(ProductoModel producto) async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('⚠️ Confirmar Eliminación'),
-        content: Text('¿Eliminar "${producto.nombre}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+  void _confirmarEliminarProducto(ProductoModel p) async {
+    final ok = await _confirmar('¿Eliminar "${p.nombre}"?');
+    if (ok) {
+      await _productoService.eliminarProducto(p.id);
+      _snack('✅ Producto eliminado', Colors.green);
+    }
+  }
+
+  Widget _campo(TextEditingController ctrl, String label, IconData icon,
+      {int maxLines = 1, TextInputType tipo = TextInputType.text}) {
+    return TextField(
+      controller: ctrl, keyboardType: tipo, maxLines: maxLines,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder()),
+    );
+  }
+
+  Widget _selectorIconos(String sel, void Function(String) onChange) {
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: iconosDisponibles.map((i) {
+        final isSel = i == sel;
+        return InkWell(
+          onTap: () => onChange(i),
+          child: Container(
+            width: 46, height: 46,
+            decoration: BoxDecoration(
+              color: isSel ? Colors.purple.shade100 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isSel ? Colors.purple : Colors.grey.shade300, width: 2),
             ),
+            child: Center(child: Text(i, style: const TextStyle(fontSize: 22))),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Future<bool> _confirmar(String mensaje) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('⚠️ Confirmar'),
+        content: Text(mensaje),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
           ),
         ],
       ),
-    );
-
-    if (confirmar == true) {
-      await _productoService.eliminarProducto(producto.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Producto eliminado'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    }
+    ) ?? false;
   }
+
+  void _snack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+  }
+}
+
+// ─── WIDGETS AUXILIARES ───────────────────────────────────────
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard();
+  @override
+  Widget build(BuildContext context) => const Card(
+    child: Padding(
+      padding: EdgeInsets.all(16),
+      child: Center(child: CircularProgressIndicator()),
+    ),
+  );
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icono;
+  final String mensaje, sub;
+  const _EmptyState({required this.icono, required this.mensaje, required this.sub});
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(icono, size: 100, color: Colors.grey.shade300),
+      const SizedBox(height: 16),
+      Text(mensaje, style: TextStyle(fontSize: 20, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Text(sub, style: TextStyle(color: Colors.grey.shade500)),
+    ]),
+  );
+}
+
+class _StatData {
+  final String label, value;
+  final IconData icon;
+  final Color color;
+  const _StatData(this.label, this.value, this.icon, this.color);
+}
+
+class _StatsHeader extends StatelessWidget {
+  final List<_StatData> stats;
+  const _StatsHeader({required this.stats});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    color: Colors.purple.shade50,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: stats.map((s) => Expanded(
+        child: Column(children: [
+          Icon(s.icon, color: s.color, size: 28),
+          const SizedBox(height: 6),
+          Text(s.value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: s.color)),
+          const SizedBox(height: 2),
+          Text(s.label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ]),
+      )).toList(),
+    ),
+  );
+}
+
+class _Chip extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Chip(this.label, this.color);
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+  );
 }

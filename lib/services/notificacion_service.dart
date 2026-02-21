@@ -134,7 +134,7 @@ class NotificationService {
       String? token = await getDeviceToken();
       if (token != null) {
         await FirebaseFirestore.instance
-            .collection('usuarios')
+            .collection('users')
             .doc(userId)
             .update({
           'fcmToken': token,
@@ -151,7 +151,7 @@ class NotificationService {
     try {
       // Obtener el token del usuario
       final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
+          .collection('users')
           .doc(userId)
           .get();
       
@@ -177,7 +177,7 @@ class NotificationService {
   Future<void> sendNotificationToRole(String rol, String title, String body) async {
     try {
       final usersSnapshot = await FirebaseFirestore.instance
-          .collection('usuarios')
+          .collection('users')
           .where('rol', isEqualTo: rol)
           .get();
 
