@@ -1,236 +1,193 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
-class NotificationService {
-  static final NotificationService _instance = NotificationService._internal();
-  factory NotificationService() => _instance;
-  NotificationService._internal();
+/// Gestiona permisos, token FCM y notificaciones en primer plano (web).
+class NotificacionService {
+  static final NotificacionService _i = NotificacionService._();
+  factory NotificacionService() => _i;
+  NotificacionService._();
 
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final _fcm = FirebaseMessaging.instance;
+  final _db  = FirebaseFirestore.instance;
 
-  bool _initialized = false;
+  // Callback global para mostrar banners en la UI
+  static void Function(String titulo, String cuerpo, {String? tipo})? onMensaje;
 
-  // Inicializar el servicio de notificaciones
-  Future<void> initialize() async {
-    if (_initialized) return;
+  /// Llama esto en main() o justo después del login.
+  Future<void> inicializar() async {
+    // 1. Pedir permiso al navegador
+    final settings = await _fcm.requestPermission(
+      alert: true, badge: true, sound: true);
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) return;
 
-    // Solicitar permisos
-    await _requestPermissions();
-
-    // Configurar notificaciones locales
-    await _initializeLocalNotifications();
-
-    // Escuchar mensajes en primer plano
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Manejar tap en notificación cuando la app está en background
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
-
-    _initialized = true;
+    // 2. Escuchar mensajes con app en primer plano
+    FirebaseMessaging.onMessage.listen(_manejarMensaje);
   }
 
-  Future<void> _requestPermissions() async {
-    NotificationSettings settings = await _firebaseMessaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
-
-    print('Permisos de notificación: ${settings.authorizationStatus}');
+  /// Guarda el token FCM del usuario en Firestore para poder enviarle notificaciones.
+  Future<void> guardarToken(String uid) async {
+    try {
+      final token = await _fcm.getToken();
+      if (token == null) return;
+      await _db.collection('users').doc(uid).update({
+        'fcmToken':         token,
+        'fcmTokenActualizadoEn': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
   }
 
-  Future<void> _initializeLocalNotifications() async {
-    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-
-    const InitializationSettings settings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
-
-    await _localNotifications.initialize(
-      settings,
-      onDidReceiveNotificationResponse: (details) {
-        // Manejar tap en notificación
-        print('Notificación tocada: ${details.payload}');
-      },
-    );
-  }
-
-  void _handleForegroundMessage(RemoteMessage message) {
-    print('Mensaje recibido en primer plano: ${message.notification?.title}');
-    
-    if (message.notification != null) {
-      _showLocalNotification(
-        title: message.notification!.title ?? 'Pizzería App',
-        body: message.notification!.body ?? '',
-        payload: message.data.toString(),
-      );
-    }
-  }
-
-  void _handleNotificationTap(RemoteMessage message) {
-    print('Notificación tocada: ${message.notification?.title}');
-    // Aquí puedes navegar a una pantalla específica
-  }
-
-  Future<void> _showLocalNotification({
-    required String title,
-    required String body,
-    String? payload,
+  /// Envía una notificación a todos los usuarios con un rol determinado.
+  /// En producción esto se haría desde Cloud Functions; aquí lo hacemos
+  /// escribiendo en una colección 'notificaciones' que puede disparar un trigger.
+  static Future<void> notificarRol({
+    required String rol,
+    required String titulo,
+    required String cuerpo,
+    String tipo = 'info',
+    Map<String, dynamic>? datos,
   }) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'pizzeria_channel',
-      'Pedidos',
-      channelDescription: 'Notificaciones de pedidos de la pizzería',
-      importance: Importance.high,
-      priority: Priority.high,
-      showWhen: true,
-    );
-
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
-    const NotificationDetails details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
-    await _localNotifications.show(
-      DateTime.now().millisecond,
-      title,
-      body,
-      details,
-      payload: payload,
-    );
+    await FirebaseFirestore.instance.collection('notificaciones').add({
+      'rol':    rol,
+      'titulo': titulo,
+      'cuerpo': cuerpo,
+      'tipo':   tipo,
+      'datos':  datos ?? {},
+      'creadoEn': FieldValue.serverTimestamp(),
+      'leida': false,
+    });
   }
 
-  // Obtener token del dispositivo
-  Future<String?> getDeviceToken() async {
-    try {
-      String? token = await _firebaseMessaging.getToken();
-      print('FCM Token: $token');
-      return token;
-    } catch (e) {
-      print('Error obteniendo token: $e');
-      return null;
-    }
+  /// Envía notificación a un usuario específico por uid.
+  static Future<void> notificarUsuario({
+    required String uid,
+    required String titulo,
+    required String cuerpo,
+    String tipo = 'info',
+    Map<String, dynamic>? datos,
+  }) async {
+    await FirebaseFirestore.instance.collection('notificaciones').add({
+      'uid':    uid,
+      'titulo': titulo,
+      'cuerpo': cuerpo,
+      'tipo':   tipo,
+      'datos':  datos ?? {},
+      'creadoEn': FieldValue.serverTimestamp(),
+      'leida': false,
+    });
   }
 
-  // Guardar token en Firestore para el usuario
-  Future<void> saveTokenToFirestore(String userId, String rol) async {
-    try {
-      String? token = await getDeviceToken();
-      if (token != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .update({
-          'fcmToken': token,
-          'lastTokenUpdate': FieldValue.serverTimestamp(),
+  void _manejarMensaje(RemoteMessage msg) {
+    final titulo = msg.notification?.title ?? msg.data['titulo'] ?? '';
+    final cuerpo = msg.notification?.body  ?? msg.data['cuerpo'] ?? '';
+    onMensaje?.call(titulo, cuerpo, tipo: msg.data['tipo']);
+  }
+}
+
+/// Widget que muestra un banner flotante cuando llega una notificación en primer plano.
+class NotificacionBanner extends StatefulWidget {
+  final Widget child;
+  const NotificacionBanner({super.key, required this.child});
+  @override
+  State<NotificacionBanner> createState() => _NotificacionBannerState();
+}
+
+class _NotificacionBannerState extends State<NotificacionBanner>
+    with SingleTickerProviderStateMixin {
+  String? _titulo;
+  String? _cuerpo;
+  String  _tipo = 'info';
+  late AnimationController _ctrl;
+  late Animation<Offset>   _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl  = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _slide = Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+    NotificacionService.onMensaje = (titulo, cuerpo, {tipo}) {
+      if (!mounted) return;
+      setState(() { _titulo = titulo; _cuerpo = cuerpo; _tipo = tipo ?? 'info'; });
+      _ctrl.forward();
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) _ctrl.reverse().then((_) {
+          if (mounted) setState(() { _titulo = null; _cuerpo = null; });
         });
-      }
-    } catch (e) {
-      print('Error guardando token: $e');
+      });
+    };
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  Color get _color {
+    switch (_tipo) {
+      case 'pedido':   return const Color(0xFFFF6B00);
+      case 'listo':    return Colors.green;
+      case 'camino':   return Colors.indigo;
+      default:         return Colors.blueGrey.shade700;
     }
   }
 
-  // Enviar notificación a un usuario específico
-  Future<void> sendNotificationToUser(String userId, String title, String body) async {
-    try {
-      // Obtener el token del usuario
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-      
-      final token = userDoc.data()?['fcmToken'];
-      
-      if (token != null) {
-        // Aquí usarías Cloud Functions para enviar la notificación
-        // Por ahora solo guardamos en Firestore para que se muestre
-        await FirebaseFirestore.instance.collection('notificaciones').add({
-          'userId': userId,
-          'title': title,
-          'body': body,
-          'timestamp': FieldValue.serverTimestamp(),
-          'read': false,
-        });
-      }
-    } catch (e) {
-      print('Error enviando notificación: $e');
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Stack(children: [
+      widget.child,
+      if (_titulo != null)
+        Positioned(
+          top: 12, left: 16, right: 16,
+          child: SlideTransition(
+            position: _slide,
+            child: SafeArea(
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _color,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(children: [
+                    const Text('🍕', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_titulo!, style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        if (_cuerpo?.isNotEmpty == true)
+                          Text(_cuerpo!, style: const TextStyle(
+                              color: Colors.white70, fontSize: 12)),
+                      ],
+                    )),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+                      onPressed: () => _ctrl.reverse().then((_) {
+                        if (mounted) setState(() { _titulo = null; _cuerpo = null; });
+                      }),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ]);
   }
+}
 
-  // Enviar notificación a todos los usuarios de un rol
-  Future<void> sendNotificationToRole(String rol, String title, String body) async {
-    try {
-      final usersSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('rol', isEqualTo: rol)
-          .get();
-
-      for (var doc in usersSnapshot.docs) {
-        await sendNotificationToUser(doc.id, title, body);
-      }
-    } catch (e) {
-      print('Error enviando notificaciones por rol: $e');
-    }
-  }
-
-  // Notificar nuevo pedido a la cocina
-  Future<void> notifyNewOrderToKitchen(String pedidoId, int itemsCount) async {
-    await sendNotificationToRole(
-      'Cocinero',
-      '🍕 Nuevo pedido recibido',
-      'Pedido con $itemsCount productos esperando preparación',
-    );
-  }
-
-  // Notificar pedido listo a repartidores
-  Future<void> notifyOrderReadyToDrivers(String pedidoId, String direccion) async {
-    await sendNotificationToRole(
-      'Repartidor',
-      '🛵 Pedido listo para entregar',
-      'Dirección: $direccion',
-    );
-  }
-
-  // Notificar cambio de estado al cliente
-  Future<void> notifyOrderStatusToClient(String clientId, String estado, String mensaje) async {
-    String emoji;
-    switch (estado.toLowerCase()) {
-      case 'en preparación':
-        emoji = '👨‍🍳';
-        break;
-      case 'listo':
-        emoji = '✅';
-        break;
-      case 'en camino':
-        emoji = '🛵';
-        break;
-      case 'entregado':
-        emoji = '🎉';
-        break;
-      default:
-        emoji = '📦';
-    }
-
-    await sendNotificationToUser(
-      clientId,
-      '$emoji Tu pedido: $estado',
-      mensaje,
-    );
-  }
+/// Stream de notificaciones no leídas para un uid o rol.
+Stream<int> streamNotificacionesSinLeer(String uid, String rol) {
+  return FirebaseFirestore.instance
+      .collection('notificaciones')
+      .where('leida', isEqualTo: false)
+      .snapshots()
+      .map((snap) => snap.docs.where((d) {
+            final data = d.data();
+            return data['uid'] == uid || data['rol'] == rol;
+          }).length);
 }

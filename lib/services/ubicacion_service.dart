@@ -1,114 +1,95 @@
-import 'package:geolocator/geolocator.dart';
+import 'dart:js_interop';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+// JS interop declarations
+@JS('startWatchingPosition')
+external JSNumber? _startWatch(JSFunction onSuccess, JSFunction onError);
+
+@JS('stopWatchingPosition')
+external void _stopWatch(JSNumber? watchId);
+
+@JS('getCurrentPosition')
+external void _getOnce(JSFunction onSuccess, JSFunction onError);
+
+/// Publica la ubicación del repartidor en Firestore cada ~5 s (via watchPosition)
 class UbicacionService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final _db   = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  JSNumber? _watchId;
 
-  /// 📍 VERIFICAR Y SOLICITAR PERMISOS DE UBICACIÓN
-  Future<bool> verificarPermisos() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+  /// Inicia el tracking continuo del repartidor.
+  void iniciarTracking() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
 
-    // Verificar si el servicio de ubicación está habilitado
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return false;
-    }
-
-    // Verificar permisos
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return false;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /// 📍 OBTENER UBICACIÓN ACTUAL
-  Future<Position?> obtenerUbicacionActual() async {
-    try {
-      final hasPermission = await verificarPermisos();
-      if (!hasPermission) return null;
-
-      return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-    } catch (e) {
-      print('Error al obtener ubicación: $e');
-      return null;
-    }
-  }
-
-  /// 🚚 ACTUALIZAR UBICACIÓN DEL REPARTIDOR EN FIRESTORE
-  Future<void> actualizarUbicacionRepartidor(String repartidorId) async {
-    try {
-      final position = await obtenerUbicacionActual();
-      if (position == null) return;
-
-      await _db.collection('users').doc(repartidorId).update({
-        'ubicacionActual': {
-          'lat': position.latitude,
-          'lng': position.longitude,
-          'timestamp': FieldValue.serverTimestamp(),
-        },
-        'disponible': true,
-      });
-    } catch (e) {
-      print('Error al actualizar ubicación: $e');
-    }
-  }
-
-  /// 📡 STREAM DE UBICACIÓN EN TIEMPO REAL (para repartidores)
-  Stream<Position> streamUbicacion() {
-    return Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Actualizar cada 10 metros
-      ),
+    _watchId = _startWatch(
+      ((JSNumber lat, JSNumber lng, JSNumber acc) {
+        _db.collection('ubicaciones').doc(uid).set({
+          'lat':          lat.toDartDouble,
+          'lng':          lng.toDartDouble,
+          'precision':    acc.toDartDouble,
+          'actualizadoEn': FieldValue.serverTimestamp(),
+          'activo':       true,
+        });
+      }).toJS,
+      ((JSString err) {
+        // Error silencioso — no bloqueamos UI
+      }).toJS,
     );
   }
 
-  /// 📍 OBTENER UBICACIÓN DE UN REPARTIDOR DESDE FIRESTORE
-  Stream<Map<String, dynamic>?> obtenerUbicacionRepartidor(String repartidorId) {
-    return _db.collection('users').doc(repartidorId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      final data = doc.data();
-      return data?['ubicacionActual'] as Map<String, dynamic>?;
-    });
+  /// Detiene el tracking y marca al repartidor como inactivo.
+  void detenerTracking() {
+    _stopWatch(_watchId);
+    _watchId = null;
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    _db.collection('ubicaciones').doc(uid).update({'activo': false});
   }
 
-  /// 🎯 GUARDAR DIRECCIÓN DEL CLIENTE EN EL PEDIDO
-  Future<void> guardarDireccionCliente({
-    required String pedidoId,
-    required double lat,
-    required double lng,
-  }) async {
-    try {
-      await _db.collection('pedidos').doc(pedidoId).update({
-        'direccionEntrega.coordenadas': {
-          'lat': lat,
-          'lng': lng,
-        },
-      });
-    } catch (e) {
-      print('Error al guardar coordenadas: $e');
-    }
+  /// Obtiene la ubicación actual una sola vez (para centrar el mapa del cliente).
+  static Future<({double lat, double lng})?> obtenerUnaVez() async {
+    final completer = _Completer<({double lat, double lng})?>();
+    _getOnce(
+      ((JSNumber lat, JSNumber lng) {
+        completer.complete((lat: lat.toDartDouble, lng: lng.toDartDouble));
+      }).toJS,
+      ((JSString _) => completer.complete(null)).toJS,
+    );
+    return completer.future;
   }
 
-  /// 📏 CALCULAR DISTANCIA ENTRE DOS PUNTOS (en metros)
-  double calcularDistancia({
-    required double lat1,
-    required double lng1,
-    required double lat2,
-    required double lng2,
-  }) {
-    return Geolocator.distanceBetween(lat1, lng1, lat2, lng2);
+  /// Stream de la ubicación del repartidor asignado a un pedido.
+  static Stream<({double lat, double lng})?> streamUbicacionRepartidor(String repartidorId) {
+    return FirebaseFirestore.instance
+        .collection('ubicaciones')
+        .doc(repartidorId)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          final d = doc.data()!;
+          final activo = d['activo'] as bool? ?? false;
+          if (!activo) return null;
+          final lat = (d['lat'] as num?)?.toDouble();
+          final lng = (d['lng'] as num?)?.toDouble();
+          if (lat == null || lng == null) return null;
+          return (lat: lat, lng: lng);
+        });
+  }
+}
+
+// Mini completer para convertir callback → Future
+class _Completer<T> {
+  T? _value; bool _done = false;
+  final List<Function(T)> _listeners = [];
+  void complete(T value) {
+    _value = value; _done = true;
+    for (final l in _listeners) l(value);
+  }
+  Future<T> get future async {
+    if (_done) return _value as T;
+    await Future.delayed(const Duration(milliseconds: 100));
+    return future;
   }
 }

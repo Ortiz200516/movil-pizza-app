@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/pedido_model.dart';
+import 'tracking_page.dart';
 
 class MisPedidosPage extends StatelessWidget {
   const MisPedidosPage({super.key});
@@ -203,6 +204,28 @@ class _PedidoCard extends StatelessWidget {
           // Banner en camino
           if (pedido.estado == 'En camino' && esDomicilio)
             _BannerEnCamino(pedido: pedido),
+
+          // Botón ver repartidor en mapa
+          if (pedido.estado == 'En camino' && esDomicilio && pedido.repartidorId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => TrackingClientePage(pedido: pedido))),
+                  icon: const Icon(Icons.location_on),
+                  label: const Text('VER REPARTIDOR EN MAPA',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
         ]),
       ),
     );

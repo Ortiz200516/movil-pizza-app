@@ -4,18 +4,15 @@ import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
 import 'carrito/carrito_provider.dart';
-import 'pedidos/pedido_provider.dart';
 import 'auth/login_page.dart';
 import 'services/producto_service.dart';
+import 'services/notificacion_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
-  // Inicializar productos si la BD está vacía
-  final productoService = ProductoService();
-  await productoService.inicializarProductosEjemplo();
-  
+  await NotificacionService().inicializar();
+  await ProductoService().inicializarProductosEjemplo();
   runApp(const MyApp());
 }
 
@@ -27,12 +24,11 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CarritoProvider()),
-        ChangeNotifierProvider(create: (_) => PedidoProvider()),
       ],
       child: const MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'La Pizzería',
-        home: LoginPage(),
+        home: NotificacionBanner(child: LoginPage()),
       ),
     );
   }

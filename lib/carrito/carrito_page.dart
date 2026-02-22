@@ -14,9 +14,10 @@ class CarritoPage extends StatefulWidget {
 }
 
 class _CarritoPageState extends State<CarritoPage> {
-  String _tipoPedido = 'mesa';
-  final _direccionCtrl   = TextEditingController();
-  final _referenciaCtrl  = TextEditingController();
+  String _tipoPedido    = 'mesa';
+  String _metodoPago    = 'efectivo';
+  final _direccionCtrl  = TextEditingController();
+  final _referenciaCtrl = TextEditingController();
   int?  _mesaSeleccionada;
   bool  _enviando = false;
 
@@ -87,6 +88,53 @@ class _CarritoPageState extends State<CarritoPage> {
                         _campo(_direccionCtrl, 'Dirección de entrega *', Icons.location_on),
                         const SizedBox(height: 12),
                         _campo(_referenciaCtrl, 'Referencia (ej: Casa azul, frente al parque)', Icons.info_outline),
+                      ],
+                    ]),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Método de pago ──
+                  _seccion(
+                    titulo: '💳 Método de pago',
+                    child: Column(children: [
+                      Row(children: [
+                        Expanded(child: _MetodoPagoBtn(
+                          icono: '💵', label: 'Efectivo',
+                          selected: _metodoPago == 'efectivo',
+                          onTap: () => setState(() => _metodoPago = 'efectivo'),
+                        )),
+                        const SizedBox(width: 10),
+                        Expanded(child: _MetodoPagoBtn(
+                          icono: '💳', label: 'Tarjeta',
+                          selected: _metodoPago == 'tarjeta',
+                          onTap: () => setState(() => _metodoPago = 'tarjeta'),
+                        )),
+                        const SizedBox(width: 10),
+                        Expanded(child: _MetodoPagoBtn(
+                          icono: '📱', label: 'Transferencia',
+                          selected: _metodoPago == 'transferencia',
+                          onTap: () => setState(() => _metodoPago = 'transferencia'),
+                        )),
+                      ]),
+                      if (_metodoPago == 'transferencia') ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                          ),
+                          child: const Row(children: [
+                            Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(child: Text(
+                              'El número de cuenta se indicará al confirmar tu pedido.',
+                              style: TextStyle(color: Colors.blue, fontSize: 12),
+                            )),
+                          ]),
+                        ),
                       ],
                     ]),
                   ),
@@ -199,6 +247,7 @@ class _CarritoPageState extends State<CarritoPage> {
         direccionEntrega: _tipoPedido == 'domicilio'
             ? {'direccion': _direccionCtrl.text.trim(), 'referencia': _referenciaCtrl.text.trim()}
             : null,
+        metodoPago: _metodoPago,
       );
 
       if (pedido != null) {
@@ -570,3 +619,45 @@ Widget _PrecioRow(String label, String valor, {bool bold = false, Color? color})
         color: color ?? Colors.white)),
   ]),
 );
+
+// ── Botón método de pago ──────────────────────────────────────
+class _MetodoPagoBtn extends StatelessWidget {
+  final String icono, label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _MetodoPagoBtn({
+    required this.icono, required this.label,
+    required this.selected, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: selected ? Colors.orange.withOpacity(0.12) : const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected ? Colors.orange : Colors.grey.shade700,
+          width: selected ? 2 : 1,
+        ),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(icono, style: const TextStyle(fontSize: 22)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(
+          fontSize: 11, fontWeight: FontWeight.bold,
+          color: selected ? Colors.orange : Colors.grey.shade500,
+        ), textAlign: TextAlign.center),
+        if (selected) ...[
+          const SizedBox(height: 3),
+          Container(width: 18, height: 2,
+              decoration: BoxDecoration(color: Colors.orange,
+                  borderRadius: BorderRadius.circular(2))),
+        ],
+      ]),
+    ),
+  );
+}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_services.dart';
+import '../services/ubicacion_service.dart';
 import '../auth/login_page.dart';
 import '../models/pedido_model.dart';
 import '../pedidos/pedidos_service.dart';
@@ -274,10 +275,19 @@ class _CardDisponibleState extends State<_CardDisponible> {
     final ok = await PedidoService().asignarRepartidor(widget.pedido.id, widget.repartidorId);
     if (mounted) {
       setState(() => _tomando = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok ? '✅ Pedido asignado — ¡a entregar!' : '❌ Error al tomar el pedido'),
-        backgroundColor: ok ? Colors.green : Colors.red,
-      ));
+      if (ok) {
+        // Iniciar tracking GPS cuando toma el pedido
+        UbicacionService().iniciarTracking();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('✅ Pedido asignado — ¡a entregar! GPS activado 📍'),
+          backgroundColor: Colors.green,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('❌ Error al tomar el pedido'),
+          backgroundColor: Colors.red,
+        ));
+      }
     }
   }
 
@@ -491,6 +501,8 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
     if (mounted) {
       setState(() => _verificando = false);
       if (ok) {
+        // Detener tracking GPS al entregar
+        UbicacionService().detenerTracking();
         showDialog(
           context: context,
           builder: (_) => AlertDialog(

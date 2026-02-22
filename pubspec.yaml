@@ -1,7 +1,7 @@
 name: pizzeria_app
-description: "A new Flutter project."
+description: "La Pizzería - App de gestión de pedidos"
 
-publish_to: 'none' 
+publish_to: 'none'
 
 version: 1.0.0+1
 
@@ -15,31 +15,25 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Firebase
-  firebase_core: ^4.3.0
-  cloud_firestore: ^6.1.1
-  firebase_auth: ^6.1.3
-  firebase_messaging: ^16.1.0          # ← Agregado ^
-  firebase_app_check: 0.4.1+3
-  
-  # Maps y Localización
-  google_maps_flutter: ^2.14.0
-  google_maps_flutter_web: ^0.5.10    # ← NUEVO - Soporte para web
-  geolocator: ^14.0.2
-  
-  # Notificaciones
-  flutter_local_notifications: ^18.0.1 # ← Agregado ^
-  
-  # Otros
-  dio: ^5.9.0
-  intl: ^0.20.2
-  provider: ^6.1.2
-  permission_handler: ^12.0.1
+  firebase_core:            ^4.3.0
+  cloud_firestore:          ^6.1.1
+  firebase_auth:            ^6.1.3
+  firebase_messaging:       ^15.1.3   # FCM para web via JS SDK
+
+  # Maps (web)
+  google_maps_flutter:      ^2.9.0
+  google_maps_flutter_web:  ^0.5.10
+
+  # Estado
+  provider:            ^6.1.2
+
+  # Utilidades
+  intl:                ^0.20.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^6.0.0
 
 flutter:
-
   uses-material-design: true

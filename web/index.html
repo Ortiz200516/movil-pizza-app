@@ -1,49 +1,88 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <base href="$FLUTTER_BASE_HREF">
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Pizzeria App - Sistema de gestión de pedidos">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <base href="$FLUTTER_BASE_HREF" />
+    <meta charset="UTF-8" />
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+    <meta
+      name="description"
+      content="Pizzeria App - Sistema de gestión de pedidos"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="La Pizzería" />
+    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <title>La Pizzería</title>
+    <link rel="manifest" href="manifest.json" />
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="pizzeria_app">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+    <!-- Google Maps API - reemplaza YOUR_API_KEY si cambia -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnJpwRt2GBxIto58_jYTDEuYTS1Y6YE0Y"></script>
 
-  <title>Pizzeria App</title>
-  <link rel="manifest" href="manifest.json">
+    <script>
+      // Firebase config
+      const firebaseConfig = {
+        apiKey: "AIzaSyDfNBRtaaEsbGYdqG2_WO5xIUsrCW9FXdY",
+        authDomain: "app-pizzeria-ecuador-2005.firebaseapp.com",
+        projectId: "app-pizzeria-ecuador-2005",
+        storageBucket: "app-pizzeria-ecuador-2005.firebasestorage.app",
+        messagingSenderId: "407730041770",
+        appId: "1:407730041770:web:d9842f5093d43a9bc031d3",
+      };
+      firebase.initializeApp(firebaseConfig);
 
-  <!-- 🔥 FIREBASE SDKs - CRÍTICO PARA WEB -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js"></script>
-  
-  <!-- 🗺️ GOOGLE MAPS API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnJpwRt2GBxIto58_jYTDEuYTS1Y6YE0Y"></script>
+      // Registrar service worker para FCM (notificaciones en background)
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/firebase-messaging-sw.js")
+          .then((reg) => console.log("SW registrado:", reg.scope))
+          .catch((err) => console.warn("SW error:", err));
+      }
 
-  <!-- 🔥 CONFIGURACIÓN DE FIREBASE -->
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDfNBRtaaEsbGYdqG2_WO5xIUsrCW9FXdY",
-      authDomain: "app-pizzeria-ecuador-2005.firebaseapp.com",
-      projectId: "app-pizzeria-ecuador-2005",
-      storageBucket: "app-pizzeria-ecuador-2005.firebasestorage.app",
-      messagingSenderId: "407730041770",
-      appId: "1:407730041770:web:d9842f5093d43a9bc031d3"
-    };
-    
-    // Inicializar Firebase
-    firebase.initializeApp(firebaseConfig);
-  </script>
-</head>
-<body>
-  <script src="flutter_bootstrap.js" async></script>
-</body>
+      // Geolocation helper — el repartidor llama esto desde Dart via JS interop
+      window.startWatchingPosition = function (onSuccess, onError) {
+        if (!navigator.geolocation) {
+          onError("Geolocation no disponible");
+          return null;
+        }
+        const id = navigator.geolocation.watchPosition(
+          (pos) =>
+            onSuccess(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              pos.coords.accuracy,
+            ),
+          (err) => onError(err.message),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
+        );
+        return id;
+      };
+
+      window.stopWatchingPosition = function (watchId) {
+        if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      };
+
+      window.getCurrentPosition = function (onSuccess, onError) {
+        if (!navigator.geolocation) {
+          onError("Geolocation no disponible");
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => onSuccess(pos.coords.latitude, pos.coords.longitude),
+          (err) => onError(err.message),
+          { enableHighAccuracy: true, timeout: 10000 },
+        );
+      };
+    </script>
+  </head>
+  <body>
+    <script src="flutter_bootstrap.js" async></script>
+  </body>
 </html>
