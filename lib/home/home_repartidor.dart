@@ -12,66 +12,54 @@ class HomeRepartidor extends StatefulWidget {
   State<HomeRepartidor> createState() => _HomeRepartidorState();
 }
 
-class _HomeRepartidorState extends State<HomeRepartidor> with SingleTickerProviderStateMixin {
-  late TabController _tabCtrl;
+class _HomeRepartidorState extends State<HomeRepartidor> {
   final user = FirebaseAuth.instance.currentUser;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     if (user == null) {
       return const Scaffold(body: Center(child: Text('Error: sin sesión')));
     }
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: const Text('🛵 Panel Repartidor'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          // Indicador disponibilidad
-          _ToggleDisponible(uid: user!.uid),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthService().logout();
-              if (context.mounted) Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => const LoginPage()));
-            },
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        appBar: AppBar(
+          title: const Text('🛵 Panel Repartidor'),
+          backgroundColor: Colors.indigo,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          actions: [
+            _ToggleDisponible(uid: user!.uid),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await AuthService().logout();
+                if (context.mounted) Navigator.pushReplacement(
+                    context, MaterialPageRoute(builder: (_) => const LoginPage()));
+              },
+            ),
+          ],
+          bottom: const TabBar(
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white60,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            tabs: [
+              Tab(icon: Icon(Icons.inbox, size: 20), text: 'Disponibles'),
+              Tab(icon: Icon(Icons.delivery_dining, size: 20), text: 'Mis entregas'),
+              Tab(icon: Icon(Icons.bar_chart, size: 20), text: 'Mi día'),
+            ],
           ),
-        ],
-        bottom: const TabBar(
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: [
-            Tab(icon: Icon(Icons.inbox, size: 20), text: 'Disponibles'),
-            Tab(icon: Icon(Icons.delivery_dining, size: 20), text: 'Mis entregas'),
-            Tab(icon: Icon(Icons.bar_chart, size: 20), text: 'Mi día'),
+        ),
+        body: TabBarView(
+          children: [
+            _TabDisponibles(repartidorId: user!.uid),
+            _TabMisEntregas(repartidorId: user!.uid),
+            _TabMiDia(repartidorId: user!.uid),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabCtrl,
-        children: [
-          _TabDisponibles(repartidorId: user!.uid),
-          _TabMisEntregas(repartidorId: user!.uid),
-          _TabMiDia(repartidorId: user!.uid),
-        ],
       ),
     );
   }

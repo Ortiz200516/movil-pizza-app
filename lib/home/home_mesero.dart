@@ -11,60 +11,48 @@ class HomeMesero extends StatefulWidget {
   State<HomeMesero> createState() => _HomeMeseroState();
 }
 
-class _HomeMeseroState extends State<HomeMesero> with SingleTickerProviderStateMixin {
-  late TabController _tabCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
+class _HomeMeseroState extends State<HomeMesero> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: const Text('🍽️ Panel Mesero'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await AuthService().logout();
-              if (context.mounted) Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => const LoginPage()));
-            },
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade100,
+        appBar: AppBar(
+          title: const Text('🍽️ Panel Mesero'),
+          backgroundColor: Colors.teal,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await AuthService().logout();
+                if (context.mounted) Navigator.pushReplacement(
+                    context, MaterialPageRoute(builder: (_) => const LoginPage()));
+              },
+            ),
+          ],
+          bottom: const TabBar(
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white60,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            tabs: [
+              Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Mesas'),
+              Tab(icon: Icon(Icons.receipt_long, size: 20), text: 'Pedidos'),
+              Tab(icon: Icon(Icons.history, size: 20), text: 'Historial'),
+            ],
           ),
-        ],
-        bottom: const TabBar(
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: [
-            Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Mesas'),
-            Tab(icon: Icon(Icons.receipt_long, size: 20), text: 'Pedidos'),
-            Tab(icon: Icon(Icons.history, size: 20), text: 'Historial'),
+        ),
+        body: const TabBarView(
+          children: [
+            _TabMesas(),
+            _TabPedidos(),
+            _TabHistorial(),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabCtrl,
-        children: const [
-          _TabMesas(),
-          _TabPedidos(),
-          _TabHistorial(),
-        ],
       ),
     );
   }
