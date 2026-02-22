@@ -5,6 +5,7 @@ import '../services/auth_services.dart';
 import '../auth/login_page.dart';
 import '../cliente/menu_page.dart';
 import '../cliente/mis_pedidos_page.dart';
+import '../cliente/perfil_page.dart';
 import '../carrito/carrito_page.dart';
 import '../carrito/carrito_provider.dart';
 
@@ -17,8 +18,8 @@ class HomeCliente extends StatefulWidget {
 class _HomeClienteState extends State<HomeCliente> {
   int _selectedIndex = 0;
 
-  static const List<String> _titles = ['MENU', 'MIS PEDIDOS', 'CARRITO'];
-  static const List<String> _emojis = ['🍽️', '📋', '🛒'];
+  static const _titles = ['MENU', 'MIS PEDIDOS', 'CARRITO', 'PERFIL'];
+  static const _emojis = ['🍽️', '📋', '🛒', '👤'];
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +30,7 @@ class _HomeClienteState extends State<HomeCliente> {
       const MenuPage(),
       const MisPedidosPage(),
       const CarritoPage(),
+      const PerfilPage(),
     ];
 
     return Scaffold(
@@ -61,7 +63,7 @@ class _HomeClienteState extends State<HomeCliente> {
               fontSize: 13, letterSpacing: 1.5)),
         ]),
         actions: [
-          // Badge carrito (visible en todas las pestañas excepto en carrito)
+          // Badge carrito (oculto en pestaña carrito)
           if (_selectedIndex != 2)
             GestureDetector(
               onTap: () => setState(() => _selectedIndex = 2),
@@ -90,15 +92,6 @@ class _HomeClienteState extends State<HomeCliente> {
                 ]),
               ),
             ),
-          // Logout
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white24, size: 20),
-            onPressed: () async {
-              await AuthService().logout();
-              if (context.mounted) Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => const LoginPage()));
-            },
-          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -112,24 +105,33 @@ class _HomeClienteState extends State<HomeCliente> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _NavItem(index: 0, icono: Icons.restaurant_menu_outlined,
-                    iconoActivo: Icons.restaurant_menu, label: 'Menu',
-                    selected: _selectedIndex == 0,
-                    color: const Color(0xFFFF6B35),
-                    onTap: () => setState(() => _selectedIndex = 0)),
-                _NavItem(index: 1, icono: Icons.receipt_long_outlined,
-                    iconoActivo: Icons.receipt_long, label: 'Pedidos',
-                    selected: _selectedIndex == 1,
-                    color: const Color(0xFF38BDF8),
-                    onTap: () => setState(() => _selectedIndex = 1)),
+                _NavItem(
+                  icono: Icons.restaurant_menu_outlined, iconoActivo: Icons.restaurant_menu,
+                  label: 'Menú', selected: _selectedIndex == 0,
+                  color: const Color(0xFFFF6B35),
+                  onTap: () => setState(() => _selectedIndex = 0),
+                ),
+                _NavItem(
+                  icono: Icons.receipt_long_outlined, iconoActivo: Icons.receipt_long,
+                  label: 'Pedidos', selected: _selectedIndex == 1,
+                  color: const Color(0xFF38BDF8),
+                  onTap: () => setState(() => _selectedIndex = 1),
+                ),
                 _NavItemCarrito(
-                    selected: _selectedIndex == 2,
-                    count: carrito.cantidadTotal,
-                    onTap: () => setState(() => _selectedIndex = 2)),
+                  selected: _selectedIndex == 2,
+                  count: carrito.cantidadTotal,
+                  onTap: () => setState(() => _selectedIndex = 2),
+                ),
+                _NavItem(
+                  icono: Icons.person_outline, iconoActivo: Icons.person,
+                  label: 'Perfil', selected: _selectedIndex == 3,
+                  color: const Color(0xFFA78BFA),
+                  onTap: () => setState(() => _selectedIndex = 3),
+                ),
               ],
             ),
           ),
@@ -140,13 +142,12 @@ class _HomeClienteState extends State<HomeCliente> {
 }
 
 class _NavItem extends StatelessWidget {
-  final int index;
   final IconData icono, iconoActivo;
   final String label;
   final bool selected;
   final Color color;
   final VoidCallback onTap;
-  const _NavItem({required this.index, required this.icono, required this.iconoActivo,
+  const _NavItem({required this.icono, required this.iconoActivo,
       required this.label, required this.selected, required this.color, required this.onTap});
 
   @override
@@ -154,7 +155,7 @@ class _NavItem extends StatelessWidget {
     onTap: onTap,
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: selected ? color.withOpacity(0.12) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
@@ -185,7 +186,7 @@ class _NavItemCarrito extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? color.withOpacity(0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -199,8 +200,9 @@ class _NavItemCarrito extends StatelessWidget {
               Positioned(right: 0, top: 0,
                 child: Container(
                   width: 14, height: 14,
-                  decoration: BoxDecoration(color: const Color(0xFFFF6B35), shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF0F172A), width: 1.5)),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B35), shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF0F172A), width: 1.5)),
                   child: Center(child: Text('$count',
                       style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900))),
                 )),
