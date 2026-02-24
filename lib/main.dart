@@ -4,9 +4,10 @@ import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
 import 'carrito/carrito_provider.dart';
-import 'auth/login_page.dart';
 import 'services/producto_service.dart';
 import 'services/notificacion_service.dart';
+import 'services/theme_provider.dart';
+import 'splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,11 +25,17 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CarritoProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'La Pizzería',
-        home: NotificacionBanner(child: LoginPage()),
+      child: Consumer<ThemeProvider>(
+        builder: (_, theme, __) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'La Pizzería',
+          themeMode:  theme.themeMode,
+          theme:      ThemeProvider.temaClaro,
+          darkTheme:  ThemeProvider.temaOscuro,
+          home: const NotificacionBanner(child: SplashPage()),
+        ),
       ),
     );
   }

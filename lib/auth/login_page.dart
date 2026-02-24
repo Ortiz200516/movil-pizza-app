@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_services.dart';
+import '../services/notificacion_service.dart';
 import '../home/home_admin.dart';
 import '../home/home_cliente.dart';
 import '../home/home_cocinero.dart';
@@ -47,6 +48,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     try {
       final rol = await _authService.login(
         _emailCtrl.text.trim(), _passCtrl.text.trim());
+
+      // Guardar token FCM para recibir notificaciones push
+      final uid = _authService.currentUserId;
+      if (uid != null) await NotificacionService().guardarToken(uid);
+
       Widget destino;
       switch (rol.toLowerCase()) {
         case 'admin':       destino = const HomeAdmin(); break;

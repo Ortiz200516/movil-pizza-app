@@ -6,7 +6,21 @@ class ProductoService {
 
   Stream<List<ProductoModel>> obtenerProductos() {
     return _db.collection('productos').where('disponible', isEqualTo: true)
-        .snapshots().map((s) => s.docs.map((d) => ProductoModel.fromFirestore(d.id, d.data())).toList());
+        .snapshots().map((s) => s.docs.map((d) {
+          final data = Map<String, dynamic>.from(d.data());
+          // Normalizar categoría a minúsculas sin tildes para filtrado consistente
+          if (data['categoria'] != null) {
+            data['categoria'] = _normalizarCategoria(data['categoria'].toString());
+          }
+          return ProductoModel.fromFirestore(d.id, data);
+        }).toList());
+  }
+
+  static String _normalizarCategoria(String cat) {
+    return cat.toLowerCase().trim()
+        .replaceAll('á', 'a').replaceAll('é', 'e')
+        .replaceAll('í', 'i').replaceAll('ó', 'o')
+        .replaceAll('ú', 'u').replaceAll('ü', 'u');
   }
 
   Stream<List<ProductoModel>> obtenerProductosPorCategoria(String categoria) {

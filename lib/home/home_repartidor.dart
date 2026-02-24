@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_services.dart';
 import '../services/ubicacion_service.dart';
+import '../services/notificacion_service.dart';
 import '../auth/login_page.dart';
 import '../models/pedido_model.dart';
 import '../pedidos/pedidos_service.dart';
@@ -32,6 +33,7 @@ class _HomeRepartidorState extends State<HomeRepartidor> {
           elevation: 0,
           actions: [
             _ToggleDisponible(uid: user!.uid),
+            NotifBadgeBtn(uid: user!.uid, rol: 'repartidor'),
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () async {

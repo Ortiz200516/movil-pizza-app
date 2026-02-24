@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_services.dart';
+import '../services/notificacion_service.dart';
 import '../auth/login_page.dart';
 import '../models/pedido_model.dart';
 import '../pedidos/pedidos_service.dart';
@@ -24,6 +26,10 @@ class _HomeMeseroState extends State<HomeMesero> {
           foregroundColor: Colors.white,
           elevation: 0,
           actions: [
+            NotifBadgeBtn(
+              uid: FirebaseAuth.instance.currentUser?.uid ?? '',
+              rol: 'mesero',
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               onPressed: () async {

@@ -81,6 +81,13 @@ class AuthService {
     }
   }
 
+  /// 🎭 OBTENER ROL DE UN UID (para splash con sesión activa)
+  Future<String> obtenerRol(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+    if (!doc.exists) throw Exception('Usuario sin rol');
+    return doc['rol'] as String;
+  }
+
   /// 🚪 CERRAR SESIÓN
   Future<void> logout() async {
     await _auth.signOut();

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../services/auth_services.dart';
+import '../services/theme_provider.dart';
 import '../auth/login_page.dart';
 
 class PerfilPage extends StatefulWidget {
@@ -79,6 +81,11 @@ class _PerfilPageState extends State<PerfilPage> {
 
             // ── Stats de pedidos ──
             _StatsRow(userId: user.uid),
+
+            const SizedBox(height: 8),
+
+            // ── Preferencias de apariencia ──
+            _SeccionApariencia(),
 
             const SizedBox(height: 16),
 
@@ -495,4 +502,138 @@ class _SeccionBtn extends StatelessWidget {
       ]),
     ),
   );
+}
+
+// ── SECCIÓN APARIENCIA ────────────────────────────────────────
+class _SeccionApariencia extends StatelessWidget {
+  const _SeccionApariencia();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeProvider>();
+    final oscuro = theme.oscuro;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: oscuro ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: oscuro ? Colors.white10 : Colors.black12,
+          ),
+        ),
+        child: Column(children: [
+          // Título sección
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Row(children: [
+              Icon(Icons.palette_outlined,
+                  size: 16,
+                  color: oscuro ? Colors.white38 : Colors.black45),
+              const SizedBox(width: 8),
+              Text('Apariencia',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: oscuro ? Colors.white38 : Colors.black45,
+                  )),
+            ]),
+          ),
+          const SizedBox(height: 12),
+
+          // Toggle modo oscuro/claro
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 12, 14),
+            child: Row(children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  oscuro ? '🌙' : '☀️',
+                  key: ValueKey(oscuro),
+                  style: const TextStyle(fontSize: 22),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    oscuro ? 'Modo oscuro' : 'Modo claro',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: oscuro ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  Text(
+                    oscuro ? 'Ideal para uso nocturno' : 'Ideal para uso diurno',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: oscuro ? Colors.white38 : Colors.black45),
+                  ),
+                ]),
+              ),
+              Switch(
+                value: oscuro,
+                onChanged: (_) => theme.toggleTema(),
+                activeColor: const Color(0xFFFF6B00),
+                activeTrackColor: const Color(0xFFFF6B00).withOpacity(0.3),
+                inactiveThumbColor: Colors.grey,
+                inactiveTrackColor: Colors.grey.withOpacity(0.2),
+              ),
+            ]),
+          ),
+
+          // Preview de tema
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: oscuro ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B00).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFFF6B00).withOpacity(0.4)),
+                  ),
+                  child: const Center(child: Text('🍕', style: TextStyle(fontSize: 16))),
+                ),
+                const SizedBox(width: 10),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Vista previa',
+                      style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold,
+                        color: oscuro ? Colors.white70 : const Color(0xFF334155),
+                      )),
+                  Text('La Pizzería · ${oscuro ? 'Oscuro' : 'Claro'}',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: oscuro ? Colors.white24 : Colors.black45)),
+                ]),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B00),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('Activo',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }

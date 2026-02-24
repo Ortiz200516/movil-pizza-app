@@ -1,29 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/producto_model.dart';
 import '../services/producto_service.dart';
 import '../carrito/carrito_provider.dart';
 
-// ─── COLORES DE CATEGORIA ────────────────────────────────────
-const Map<String, Color> _catColors = {
-  'pizza':       Color(0xFFFF6B35),
-  'hamburguesa': Color(0xFFFFB800),
-  'cerveza':     Color(0xFF38BDF8),
-  'bebida':      Color(0xFF818CF8),
-  'entrada':     Color(0xFFFB7185),
-  'ensalada':    Color(0xFF4ADE80),
-  'postre':      Color(0xFFF472B6),
-};
+// ─── HELPERS ─────────────────────────────────────────────────
+const List<Color> _paleta = [
+  Color(0xFFFF6B35), Color(0xFFFFB800), Color(0xFF38BDF8),
+  Color(0xFF818CF8), Color(0xFFFB7185), Color(0xFF4ADE80),
+  Color(0xFFF472B6), Color(0xFF34D399), Color(0xFFFBBF24),
+];
+Color _colorPorIdx(int i) => _paleta[i % _paleta.length];
 
-const Map<String, String> _catIconos = {
-  'pizza': '🍕', 'hamburguesa': '🍔', 'cerveza': '🍺',
-  'bebida': '🥤', 'entrada': '🍟', 'ensalada': '🥗', 'postre': '🍰',
-};
+String _iconoPorNombre(String nombre) {
+  final n = nombre.toLowerCase();
+  if (n.contains('pizza'))                                              return '🍕';
+  if (n.contains('hamburgues'))                                         return '🍔';
+  if (n.contains('cerveza'))                                            return '🍺';
+  if (n.contains('bebida')||n.contains('refresco')||n.contains('jugo')) return '🥤';
+  if (n.contains('entrada')||n.contains('snack')||n.contains('papa'))   return '🍟';
+  if (n.contains('ensalada'))                                           return '🥗';
+  if (n.contains('postre')||n.contains('helado')||n.contains('dulce'))  return '🍰';
+  if (n.contains('combo'))                                              return '🍱';
+  if (n.contains('cafe')||n.contains('café'))                           return '☕';
+  return '🍽️';
+}
 
-Color _colorDeCat(String cat) =>
-    _catColors[cat.toLowerCase()] ?? const Color(0xFFFF6B35);
+Color _colorDeCat(String cat) {
+  final n = cat.toLowerCase();
+  if (n.contains('pizza'))                          return const Color(0xFFFF6B35);
+  if (n.contains('hamburgues'))                     return const Color(0xFFFFB800);
+  if (n.contains('cerveza'))                        return const Color(0xFF38BDF8);
+  if (n.contains('bebida')||n.contains('refresco')) return const Color(0xFF818CF8);
+  if (n.contains('entrada')||n.contains('snack'))   return const Color(0xFFFB7185);
+  if (n.contains('ensalada'))                       return const Color(0xFF4ADE80);
+  if (n.contains('postre'))                         return const Color(0xFFF472B6);
+  return const Color(0xFFFF6B35);
+}
 
-// ─── MENU PAGE PRINCIPAL ─────────────────────────────────────
+String _capitalizar(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+// ─── MENU PAGE ────────────────────────────────────────────────
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
   @override
@@ -31,10 +50,10 @@ class MenuPage extends StatefulWidget {
 }
 
 class _MenuPageState extends State<MenuPage> {
-  final ProductoService _service = ProductoService();
-  String? _catSel;          // null = todas
-  String _query = '';
-  final _searchCtrl = TextEditingController();
+  final _service = ProductoService();
+  String? _catSel;
+  String  _query  = '';
+  final   _searchCtrl = TextEditingController();
 
   @override
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
@@ -45,73 +64,92 @@ class _MenuPageState extends State<MenuPage> {
       color: const Color(0xFF111827),
       child: Column(children: [
 
-        // ── BARRA DE BÚSQUEDA ──────────────────────────────
+        // Búsqueda
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-          child: Row(children: [
-            Expanded(child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              onChanged: (v) => setState(() { _query = v; if (v.isNotEmpty) _catSel = null; }),
+              decoration: InputDecoration(
+                hintText: 'Buscar en el menú...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+                prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.3), size: 20),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.close, color: Colors.white.withOpacity(0.3), size: 18),
+                        onPressed: () => setState(() { _searchCtrl.clear(); _query = ''; _catSel = null; }),
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
-              child: TextField(
-                controller: _searchCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                onChanged: (v) => setState(() => _query = v),
-                decoration: InputDecoration(
-                  hintText: 'Buscar en el menu...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
-                  prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.3), size: 20),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.close, color: Colors.white.withOpacity(0.3), size: 18),
-                          onPressed: () => setState(() { _searchCtrl.clear(); _query = ''; _catSel = null; }),
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-            )),
-          ]),
+            ),
+          ),
         ),
 
-        // ── CHIPS DE CATEGORÍAS ────────────────────────────
+        // Chips dinámicos
         if (_query.isEmpty)
-          SizedBox(
-            height: 42,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _CatChip(label: '🍽️ Todo', color: const Color(0xFFFF6B35),
-                    selected: _catSel == null, onTap: () => setState(() => _catSel = null)),
-                ..._catColors.keys.map((cat) => _CatChip(
-                  label: '${_catIconos[cat]} ${_capitalizar(cat)}',
-                  color: _colorDeCat(cat),
-                  selected: _catSel == cat,
-                  onTap: () => setState(() => _catSel = cat),
-                )),
-              ],
-            ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('categorias')
+                .where('disponible', isEqualTo: true)
+                .orderBy('orden')
+                .snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return const SizedBox(height: 42,
+                  child: Center(child: SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(color: Color(0xFFFF6B35), strokeWidth: 2))));
+              }
+              final docs = snap.data!.docs;
+              return SizedBox(
+                height: 42,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _CatChip(label: '🍽️ Todo', color: const Color(0xFFFF6B35),
+                        selected: _catSel == null, onTap: () => setState(() => _catSel = null)),
+                    ...List.generate(docs.length, (i) {
+                      final d      = docs[i].data() as Map<String, dynamic>;
+                      final nombre = (d['nombre'] as String? ?? '').trim();
+                      if (nombre.isEmpty) return const SizedBox.shrink();
+                      final icono  = d['icono'] as String? ?? _iconoPorNombre(nombre);
+                      return _CatChip(
+                        label: '$icono $nombre',
+                        color: _colorPorIdx(i),
+                        selected: _catSel == nombre,
+                        onTap: () => setState(() => _catSel = nombre),
+                      );
+                    }),
+                  ],
+                ),
+              );
+            },
           ),
 
         const SizedBox(height: 10),
 
-        // ── GRID DE PRODUCTOS ──────────────────────────────
+        // Grid de productos
         Expanded(
           child: StreamBuilder<List<ProductoModel>>(
-            stream: _query.isNotEmpty || _catSel == null
-                ? _service.obtenerProductos()
-                : _service.obtenerProductosPorCategoria(_catSel!),
+            stream: _service.obtenerProductos(),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator(color: Color(0xFFFF6B35)));
               }
               var productos = snap.data ?? [];
 
-              // Filtrar por búsqueda
+              if (_catSel != null) {
+                productos = productos.where((p) => p.categoria.trim() == _catSel!.trim()).toList();
+              }
               if (_query.isNotEmpty) {
                 final q = _query.toLowerCase();
                 productos = productos.where((p) =>
@@ -122,20 +160,29 @@ class _MenuPageState extends State<MenuPage> {
 
               if (productos.isEmpty) {
                 return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Text('🔍', style: TextStyle(fontSize: 50)),
+                  Text(_catSel != null ? _iconoPorNombre(_catSel!) : '🔍',
+                      style: const TextStyle(fontSize: 50)),
                   const SizedBox(height: 12),
-                  Text('Sin resultados', style: TextStyle(color: Colors.white.withOpacity(0.3),
-                      fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(
+                    _catSel != null && _query.isEmpty
+                        ? 'No hay productos en "$_catSel"'
+                        : 'Sin resultados para "$_query"',
+                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 15, fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  TextButton(
+                    onPressed: () => setState(() { _catSel = null; _query = ''; _searchCtrl.clear(); }),
+                    child: Text('Ver todo el menú', style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 13)),
+                  ),
                 ]));
               }
 
               return GridView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 0.78,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
+                  crossAxisCount: 3, childAspectRatio: 0.78,
+                  crossAxisSpacing: 10, mainAxisSpacing: 10,
                 ),
                 itemCount: productos.length,
                 itemBuilder: (_, i) => _TarjetaProducto(producto: productos[i]),
@@ -148,10 +195,7 @@ class _MenuPageState extends State<MenuPage> {
   }
 }
 
-String _capitalizar(String s) =>
-    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-
-// ─── CHIP DE CATEGORÍA ────────────────────────────────────────
+// ─── CHIP ─────────────────────────────────────────────────────
 class _CatChip extends StatelessWidget {
   final String label;
   final Color color;
@@ -180,7 +224,7 @@ class _CatChip extends StatelessWidget {
   );
 }
 
-// ─── TARJETA DE PRODUCTO ──────────────────────────────────────
+// ─── TARJETA PRODUCTO ─────────────────────────────────────────
 class _TarjetaProducto extends StatelessWidget {
   final ProductoModel producto;
   const _TarjetaProducto({required this.producto});
@@ -198,8 +242,6 @@ class _TarjetaProducto extends StatelessWidget {
           boxShadow: [BoxShadow(color: color.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-          // Zona emoji
           Container(
             height: 90,
             decoration: BoxDecoration(
@@ -208,7 +250,6 @@ class _TarjetaProducto extends StatelessWidget {
             ),
             child: Stack(children: [
               Center(child: Text(producto.icono, style: const TextStyle(fontSize: 52))),
-              // Badge categoría
               Positioned(top: 8, right: 8,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -223,17 +264,14 @@ class _TarjetaProducto extends StatelessWidget {
               ),
             ]),
           ),
-
-          // Info del producto
           Expanded(child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(producto.nombre, style: const TextStyle(color: Colors.white,
-                  fontWeight: FontWeight.w700, fontSize: 13),
+              Text(producto.nombre, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 3),
-              Text(producto.descripcion, style: TextStyle(color: Colors.white.withOpacity(0.35),
-                  fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
+              Text(producto.descripcion, style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 10),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
               const Spacer(),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('\$${producto.precio.toStringAsFixed(2)}',
@@ -267,8 +305,7 @@ class _TarjetaProducto extends StatelessWidget {
       content: Row(children: [
         Text(producto.icono, style: const TextStyle(fontSize: 18)),
         const SizedBox(width: 8),
-        Text('${producto.nombre} agregado al carrito',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text('${producto.nombre} agregado', style: const TextStyle(fontWeight: FontWeight.w600)),
       ]),
       backgroundColor: _colorDeCat(producto.categoria),
       behavior: SnackBarBehavior.floating,
@@ -279,8 +316,7 @@ class _TarjetaProducto extends StatelessWidget {
 
   void _mostrarDetalle(BuildContext context) {
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
+      context: context, isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _DetalleSheet(producto: producto),
     );
@@ -306,8 +342,8 @@ class _DetalleSheetState extends State<_DetalleSheet> {
   double get _precioFinal {
     double p = widget.producto.precio;
     if (_tamanoSel == 'grande')   p += 2.0;
-    else if (_tamanoSel == 'mediana')   p += 1.0;
-    else if (_tamanoSel == 'familiar')  p += 4.0;
+    if (_tamanoSel == 'mediana')  p += 1.0;
+    if (_tamanoSel == 'familiar') p += 4.0;
     return p * _cantidad;
   }
 
@@ -326,13 +362,9 @@ class _DetalleSheetState extends State<_DetalleSheet> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-          // Handle
           Center(child: Container(width: 40, height: 4,
               decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
-
-          // Emoji + nombre + precio
           Row(children: [
             Container(
               width: 80, height: 80,
@@ -349,22 +381,18 @@ class _DetalleSheetState extends State<_DetalleSheet> {
                     style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(height: 6),
-              Text(widget.producto.nombre, style: const TextStyle(color: Colors.white,
-                  fontSize: 20, fontWeight: FontWeight.w800)),
+              Text(widget.producto.nombre, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text('\$${widget.producto.precio.toStringAsFixed(2)}',
                   style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w900)),
             ])),
           ]),
-
           const SizedBox(height: 12),
           Text(widget.producto.descripcion,
               style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13, height: 1.5)),
-
-          // Tamaños (si aplica)
           if (tamanos != null && tamanos.isNotEmpty) ...[
             const SizedBox(height: 20),
-            Text('Tamano', style: TextStyle(color: Colors.white.withOpacity(0.6),
+            Text('Tamaño', style: TextStyle(color: Colors.white.withOpacity(0.6),
                 fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
             const SizedBox(height: 10),
             Wrap(spacing: 8, children: tamanos.map<Widget>((t) {
@@ -386,8 +414,6 @@ class _DetalleSheetState extends State<_DetalleSheet> {
               );
             }).toList()),
           ],
-
-          // Notas especiales
           const SizedBox(height: 20),
           Text('Notas especiales', style: TextStyle(color: Colors.white.withOpacity(0.6),
               fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
@@ -403,15 +429,13 @@ class _DetalleSheetState extends State<_DetalleSheet> {
               style: const TextStyle(color: Colors.white, fontSize: 13),
               maxLines: 2,
               decoration: InputDecoration(
-                hintText: 'Sin cebolla, termino de coccion, etc...',
+                hintText: 'Sin cebolla, término de cocción, etc...',
                 hintStyle: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 13),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.all(12),
               ),
             ),
           ),
-
-          // Cantidad
           const SizedBox(height: 20),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('Cantidad', style: TextStyle(color: Colors.white.withOpacity(0.6),
@@ -419,18 +443,13 @@ class _DetalleSheetState extends State<_DetalleSheet> {
             Row(children: [
               _BtnCantidad(icono: Icons.remove, color: color,
                   onTap: _cantidad > 1 ? () => setState(() => _cantidad--) : null),
-              Container(
-                width: 48,
-                alignment: Alignment.center,
-                child: Text('$_cantidad', style: const TextStyle(color: Colors.white,
-                    fontSize: 20, fontWeight: FontWeight.w900)),
-              ),
+              Container(width: 48, alignment: Alignment.center,
+                child: Text('$_cantidad', style: const TextStyle(
+                    color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))),
               _BtnCantidad(icono: Icons.add, color: color,
                   onTap: () => setState(() => _cantidad++)),
             ]),
           ]),
-
-          // Botón agregar
           const SizedBox(height: 24),
           GestureDetector(
             onTap: () {
@@ -474,6 +493,7 @@ class _DetalleSheetState extends State<_DetalleSheet> {
   }
 }
 
+// ─── BOTÓN CANTIDAD ───────────────────────────────────────────
 class _BtnCantidad extends StatelessWidget {
   final IconData icono;
   final Color color;
