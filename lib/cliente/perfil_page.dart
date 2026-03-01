@@ -175,6 +175,10 @@ class _PerfilPageState extends State<PerfilPage> {
 
                 const SizedBox(height: 28),
 
+                // ── Cupones activos ──
+                _CuponesSection(userId: user.uid),
+                const SizedBox(height: 28),
+
                 // ── Cambiar contraseña ──
                 _SeccionBtn(
                   icon: Icons.lock_outline,
@@ -634,6 +638,111 @@ class _SeccionApariencia extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+// ── Sección cupones en perfil ─────────────────────────────────
+class _CuponesSection extends StatelessWidget {
+  final String userId;
+  const _CuponesSection({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('cupones')
+          .where('activo', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+
+        final now = DateTime.now();
+        final cupones = snap.data!.docs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final exp  = data['expira'] as Timestamp?;
+          if (exp != null && exp.toDate().isBefore(now)) return false;
+          return true;
+        }).toList();
+
+        if (cupones.isEmpty) return const SizedBox.shrink();
+
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Text('🎟️', style: TextStyle(fontSize: 18)),
+            SizedBox(width: 8),
+            Text('Cupones disponibles', style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+          ]),
+          const SizedBox(height: 10),
+          ...cupones.map((d) {
+            final c = d.data() as Map<String, dynamic>;
+            return _CuponCard(
+              codigo: c['codigo'] ?? d.id,
+              descripcion: c['descripcion'] ?? '',
+              descuento: (c['descuento'] ?? 0).toDouble(),
+              tipo: c['tipo'] ?? 'porcentaje',
+            );
+          }),
+        ]);
+      },
+    );
+  }
+}
+
+class _CuponCard extends StatelessWidget {
+  final String codigo, descripcion, tipo;
+  final double descuento;
+  const _CuponCard({required this.codigo, required this.descripcion,
+      required this.descuento, required this.tipo});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = tipo == 'porcentaje'
+        ? '${descuento.toStringAsFixed(0)}% OFF'
+        : '\$${descuento.toStringAsFixed(2)} OFF';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          const Color(0xFFFF6B00).withOpacity(0.15),
+          const Color(0xFF1E293B),
+        ]),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFF6B00).withOpacity(0.4)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF6B00).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(label, style: const TextStyle(
+              color: Color(0xFFFF6B00), fontWeight: FontWeight.w900,
+              fontSize: 16)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(codigo, style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold,
+              fontSize: 14, letterSpacing: 1.5)),
+          if (descripcion.isNotEmpty)
+            Text(descripcion, style: const TextStyle(
+                color: Colors.white38, fontSize: 12)),
+        ])),
+        IconButton(
+          icon: const Icon(Icons.copy, color: Colors.white38, size: 18),
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Código "$codigo" copiado'),
+              backgroundColor: const Color(0xFFFF6B00),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ));
+          },
+        ),
+      ]),
     );
   }
 }

@@ -1,513 +1,472 @@
 import 'package:flutter/material.dart';
+import 'calificacion_page.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/pedido_model.dart';
 import 'tracking_page.dart';
 
-class MisPedidosPage extends StatelessWidget {
+class MisPedidosPage extends StatefulWidget {
   const MisPedidosPage({super.key});
+  @override
+  State<MisPedidosPage> createState() => _MisPedidosPageState();
+}
+
+class _MisPedidosPageState extends State<MisPedidosPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 2, vsync: this); }
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return const Center(child: Text('Debes iniciar sesión', style: TextStyle(color: Colors.white)));
-    }
+    if (user == null) return const Center(
+        child: Text('Debes iniciar sesión', style: TextStyle(color: Colors.white)));
 
+    return Column(children: [
+      // Tabs
+      Container(
+        color: const Color(0xFF0F172A),
+        child: TabBar(
+          controller: _tab,
+          indicatorColor: const Color(0xFFFF6B35),
+          indicatorWeight: 3,
+          labelColor: const Color(0xFFFF6B35),
+          unselectedLabelColor: Colors.white38,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          tabs: const [
+            Tab(text: '📦 En proceso'),
+            Tab(text: '📋 Historial'),
+          ],
+        ),
+      ),
+      Expanded(
+        child: TabBarView(controller: _tab, children: [
+          _TabEnProceso(uid: user.uid),
+          _TabHistorial(uid: user.uid),
+        ]),
+      ),
+    ]);
+  }
+}
+
+// ── TAB EN PROCESO ────────────────────────────────────────────
+class _TabEnProceso extends StatelessWidget {
+  final String uid;
+  const _TabEnProceso({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('pedidos')
-          .where('userId', isEqualTo: user.uid)
+          .where('userId', isEqualTo: uid)
           .orderBy('fecha', descending: true)
           .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Colors.orange));
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFFFF6B35)));
         }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}',
-              style: const TextStyle(color: Colors.red)));
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        final todos = (snap.data?.docs ?? [])
+            .map((d) => PedidoModel.fromFirestore(d.id, d.data() as Map<String, dynamic>))
+            .where((p) => p.estado != 'Entregado' && p.estado != 'Cancelado')
+            .toList();
+
+        if (todos.isEmpty) {
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Text('📋', style: TextStyle(fontSize: 80)),
-            const SizedBox(height: 16),
-            Text('No tienes pedidos aún',
-                style: TextStyle(fontSize: 20, color: Colors.grey.shade400, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('¡Haz tu primer pedido!', style: TextStyle(color: Colors.grey.shade600)),
+            const Text('✅', style: TextStyle(fontSize: 60)),
+            const SizedBox(height: 14),
+            const Text('Sin pedidos activos', style: TextStyle(
+                color: Colors.white54, fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text('¡Todo entregado!', style: TextStyle(color: Colors.white.withOpacity(0.25))),
           ]));
         }
 
-        final pedidos = snapshot.data!.docs
-            .map((doc) => PedidoModel.fromFirestore(doc.id, doc.data() as Map<String, dynamic>))
-            .toList();
-
-        final enProceso = pedidos.where((p) => p.estado != 'Entregado' && p.estado != 'Cancelado').length;
-        final entregados = pedidos.where((p) => p.estado == 'Entregado').length;
-
-        return Column(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            color: const Color(0xFF0F172A),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-              _Stat('Total', pedidos.length.toString(), Icons.receipt_long, Colors.blue),
-              _Stat('En proceso', enProceso.toString(), Icons.pending, Colors.orange),
-              _Stat('Entregados', entregados.toString(), Icons.check_circle, Colors.green),
-            ]),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              itemCount: pedidos.length,
-              itemBuilder: (_, i) => _PedidoCard(pedido: pedidos[i]),
-            ),
-          ),
-        ]);
+        return ListView.builder(
+          padding: const EdgeInsets.all(14),
+          itemCount: todos.length,
+          itemBuilder: (_, i) => _TarjetaPedido(pedido: todos[i], enProceso: true),
+        );
       },
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  final String label, value;
-  final IconData icon;
-  final Color color;
-  const _Stat(this.label, this.value, this.icon, this.color);
+// ── TAB HISTORIAL ─────────────────────────────────────────────
+class _TabHistorial extends StatefulWidget {
+  final String uid;
+  const _TabHistorial({required this.uid});
   @override
-  Widget build(BuildContext context) => Column(children: [
-    Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
-      child: Icon(icon, color: color, size: 20),
-    ),
-    const SizedBox(height: 4),
-    Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-    Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-  ]);
+  State<_TabHistorial> createState() => _TabHistorialState();
 }
 
-class _PedidoCard extends StatelessWidget {
+class _TabHistorialState extends State<_TabHistorial> {
+  String _filtro = 'Todos'; // Todos, Entregado, Cancelado
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('pedidos')
+          .where('userId', isEqualTo: widget.uid)
+          .orderBy('fecha', descending: true)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFFFF6B35)));
+        }
+        var pedidos = (snap.data?.docs ?? [])
+            .map((d) => PedidoModel.fromFirestore(d.id, d.data() as Map<String, dynamic>))
+            .where((p) => p.estado == 'Entregado' || p.estado == 'Cancelado')
+            .toList();
+
+        if (_filtro != 'Todos') {
+          pedidos = pedidos.where((p) => p.estado == _filtro).toList();
+        }
+
+        // Stats rápidas
+        final totalSnap = (snap.data?.docs ?? [])
+            .map((d) => PedidoModel.fromFirestore(d.id, d.data() as Map<String, dynamic>))
+            .where((p) => p.estado == 'Entregado' || p.estado == 'Cancelado')
+            .toList();
+        final entregados = totalSnap.where((p) => p.estado == 'Entregado').length;
+        final cancelados = totalSnap.where((p) => p.estado == 'Cancelado').length;
+        final gastado    = totalSnap
+            .where((p) => p.estado == 'Entregado')
+            .fold(0.0, (s, p) => s + p.total);
+
+        return Column(children: [
+          // Stats bar
+          Container(
+            margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+            child: Row(children: [
+              _StatItem('📦', '$entregados', 'Entregados', Colors.green),
+              _divider(),
+              _StatItem('❌', '$cancelados', 'Cancelados', Colors.red),
+              _divider(),
+              _StatItem('💰', '\$${gastado.toStringAsFixed(2)}', 'Gastado', const Color(0xFFFF6B35)),
+            ]),
+          ),
+
+          // Filtros
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: Row(children: ['Todos', 'Entregado', 'Cancelado'].map((f) {
+              final sel = _filtro == f;
+              final color = f == 'Entregado' ? Colors.green
+                  : f == 'Cancelado' ? Colors.red : const Color(0xFFFF6B35);
+              return GestureDetector(
+                onTap: () => setState(() => _filtro = f),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: sel ? color.withOpacity(0.15) : const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: sel ? color.withOpacity(0.6) : Colors.white.withOpacity(0.06)),
+                  ),
+                  child: Text(f, style: TextStyle(
+                    color: sel ? color : Colors.white38,
+                    fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 12,
+                  )),
+                ),
+              );
+            }).toList()),
+          ),
+
+          const SizedBox(height: 8),
+
+          Expanded(
+            child: pedidos.isEmpty
+                ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Text('📋', style: TextStyle(fontSize: 52)),
+                    const SizedBox(height: 12),
+                    Text('Sin historial aún', style: TextStyle(
+                        color: Colors.white38, fontSize: 15)),
+                  ]))
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
+                    itemCount: pedidos.length,
+                    itemBuilder: (_, i) => _TarjetaPedido(pedido: pedidos[i], enProceso: false),
+                  ),
+          ),
+        ]);
+      },
+    );
+  }
+
+  Widget _divider() => Container(width: 1, height: 32, color: Colors.white12,
+      margin: const EdgeInsets.symmetric(horizontal: 12));
+}
+
+class _StatItem extends StatelessWidget {
+  final String icono, valor, label; final Color color;
+  const _StatItem(this.icono, this.valor, this.label, this.color);
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Column(children: [
+      Text(icono, style: const TextStyle(fontSize: 18)),
+      const SizedBox(height: 3),
+      Text(valor, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+    ]),
+  );
+}
+
+// ── TARJETA PEDIDO ────────────────────────────────────────────
+class _TarjetaPedido extends StatefulWidget {
   final PedidoModel pedido;
-  const _PedidoCard({required this.pedido});
+  final bool enProceso;
+  const _TarjetaPedido({required this.pedido, required this.enProceso});
+  @override
+  State<_TarjetaPedido> createState() => _TarjetaPedidoState();
+}
+
+class _TarjetaPedidoState extends State<_TarjetaPedido> {
+  bool _expandido = false;
 
   Color get _colorEstado {
-    switch (pedido.estado) {
-      case 'Pendiente':  return Colors.orange;
-      case 'Preparando': return Colors.blue;
-      case 'Listo':      return Colors.purple;
-      case 'En camino':  return Colors.indigo;
-      case 'Entregado':  return Colors.green;
-      case 'Cancelado':  return Colors.red;
-      default:           return Colors.grey;
+    switch (widget.pedido.estado) {
+      case 'Pendiente':   return Colors.orange;
+      case 'Preparando':  return Colors.blue;
+      case 'Listo':       return Colors.teal;
+      case 'En camino':   return Colors.indigo;
+      case 'Entregado':   return Colors.green;
+      case 'Cancelado':   return Colors.red;
+      default:            return Colors.grey;
     }
   }
 
-  IconData get _iconoEstado {
-    switch (pedido.estado) {
-      case 'Pendiente':  return Icons.access_time;
-      case 'Preparando': return Icons.restaurant;
-      case 'Listo':      return Icons.done_all;
-      case 'En camino':  return Icons.delivery_dining;
-      case 'Entregado':  return Icons.check_circle;
-      case 'Cancelado':  return Icons.cancel;
-      default:           return Icons.help_outline;
+  String get _emojiEstado {
+    switch (widget.pedido.estado) {
+      case 'Pendiente':   return '⏳';
+      case 'Preparando':  return '👨‍🍳';
+      case 'Listo':       return '✅';
+      case 'En camino':   return '🛵';
+      case 'Entregado':   return '📦';
+      case 'Cancelado':   return '❌';
+      default:            return '📋';
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final p     = widget.pedido;
     final color = _colorEstado;
-    final esDomicilio = pedido.tipoPedido == 'domicilio';
-    final esCancelado = pedido.estado == 'Cancelado';
-    final esActivo = !esCancelado && pedido.estado != 'Entregado';
-
-    return GestureDetector(
-      onTap: () => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => _DetalleSheet(pedido: pedido),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.4), width: 1.5),
-        ),
-        child: Column(children: [
-          // Cabecera
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(_iconoEstado, size: 14, color: color),
-                    const SizedBox(width: 5),
-                    Text(pedido.estado,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-                  ]),
-                ),
-                const Spacer(),
-                Text(_formatFecha(pedido.fecha),
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-              ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                Icon(esDomicilio ? Icons.delivery_dining : Icons.table_restaurant,
-                    size: 15, color: Colors.grey.shade400),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    esDomicilio
-                        ? (pedido.direccionEntrega?['direccion'] ?? 'Domicilio')
-                        : 'Mesa ${pedido.numeroMesa ?? ""}',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade300),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 6),
-              Text(
-                pedido.items.map((i) {
-                  final n = i['productoNombre'] ?? i['nombre'] ?? 'Producto';
-                  final c = i['cantidad'] ?? 1;
-                  return c > 1 ? '${c}× $n' : n;
-                }).join(', '),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 10),
-              Row(children: [
-                Text('\$${pedido.total.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
-                const Spacer(),
-                Text('Ver detalle →', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              ]),
-            ]),
-          ),
-
-          // Código de verificación
-          if (esDomicilio && esActivo && pedido.codigoVerificacion.isNotEmpty)
-            _CodigoVerificacion(codigo: pedido.codigoVerificacion),
-
-          // Timeline
-          if (!esCancelado)
-            _Timeline(estadoActual: pedido.estado, esDomicilio: esDomicilio),
-
-          // Banner en camino
-          if (pedido.estado == 'En camino' && esDomicilio)
-            _BannerEnCamino(pedido: pedido),
-
-          // Botón ver repartidor en mapa
-          if (pedido.estado == 'En camino' && esDomicilio && pedido.repartidorId != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => TrackingClientePage(pedido: pedido))),
-                  icon: const Icon(Icons.location_on),
-                  label: const Text('VER REPARTIDOR EN MAPA',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ),
-        ]),
-      ),
-    );
-  }
-
-  String _formatFecha(DateTime f) {
-    final diff = DateTime.now().difference(f);
-    if (diff.inMinutes < 1) return 'Ahora';
-    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'Hace ${diff.inHours}h';
-    if (diff.inDays < 7) return 'Hace ${diff.inDays} días';
-    return '${f.day}/${f.month}/${f.year}';
-  }
-}
-
-// ── Código de verificación ────────────────────────────────────
-class _CodigoVerificacion extends StatelessWidget {
-  final String codigo;
-  const _CodigoVerificacion({required this.codigo});
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    decoration: BoxDecoration(
-      color: Colors.orange.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1.5),
-    ),
-    child: Column(children: [
-      Row(children: [
-        const Icon(Icons.lock, size: 14, color: Colors.orange),
-        const SizedBox(width: 6),
-        const Text('Código de verificación',
-            style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold)),
-        const Spacer(),
-        GestureDetector(
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: codigo));
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Código copiado ✅'), duration: Duration(seconds: 1)));
-          },
-          child: Row(children: [
-            const Icon(Icons.copy, size: 13, color: Colors.orange),
-            const SizedBox(width: 3),
-            Text('Copiar', style: TextStyle(fontSize: 11, color: Colors.orange.shade300)),
-          ]),
-        ),
-      ]),
-      const SizedBox(height: 8),
-      Text(codigo,
-          style: const TextStyle(
-              fontSize: 34, fontWeight: FontWeight.bold,
-              letterSpacing: 12, color: Colors.orange)),
-      const SizedBox(height: 6),
-      Text('⚠️ Dáselo al repartidor solo cuando recibas tu pedido.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade400), textAlign: TextAlign.center),
-    ]),
-  );
-}
-
-// ── Timeline de estados ───────────────────────────────────────
-class _Timeline extends StatelessWidget {
-  final String estadoActual;
-  final bool esDomicilio;
-  const _Timeline({required this.estadoActual, required this.esDomicilio});
-
-  @override
-  Widget build(BuildContext context) {
-    final pasos = esDomicilio
-        ? [('Pendiente','⏳','Recibido'), ('Preparando','👨‍🍳','Cocina'),
-           ('Listo','✅','Listo'), ('En camino','🛵','En camino'), ('Entregado','🏠','Entregado')]
-        : [('Pendiente','⏳','Recibido'), ('Preparando','👨‍🍳','Cocina'),
-           ('Listo','✅','Listo'), ('Entregado','🍽️','Servido')];
-
-    final idxActual = pasos.indexWhere((p) => p.$1 == estadoActual);
+    final fecha = '${p.fecha.day.toString().padLeft(2,'0')}/'
+        '${p.fecha.month.toString().padLeft(2,'0')} '
+        '${p.fecha.hour.toString().padLeft(2,'0')}:'
+        '${p.fecha.minute.toString().padLeft(2,'0')}';
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: List.generate(pasos.length * 2 - 1, (i) {
-          if (i.isOdd) {
-            final completado = (i ~/ 2) < idxActual;
-            return Expanded(child: Container(
-              height: 2, color: completado ? Colors.orange : Colors.grey.shade800));
-          }
-          final idx = i ~/ 2;
-          final (_, emoji, label) = pasos[idx];
-          final completado = idx < idxActual;
-          final actual = idx == idxActual;
-          return Column(mainAxisSize: MainAxisSize.min, children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 34, height: 34,
-              decoration: BoxDecoration(
-                color: completado ? Colors.orange : actual ? Colors.orange.withOpacity(0.2) : Colors.grey.shade800,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: (completado || actual) ? Colors.orange : Colors.grey.shade700,
-                  width: actual ? 2.5 : 1.5,
-                ),
-              ),
-              child: Center(
-                child: completado
-                    ? const Icon(Icons.check, size: 15, color: Colors.white)
-                    : Text(emoji, style: const TextStyle(fontSize: 13)),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                  fontSize: 9,
-                  color: (completado || actual) ? Colors.orange : Colors.grey.shade600,
-                  fontWeight: actual ? FontWeight.bold : FontWeight.normal,
-                ),
-                textAlign: TextAlign.center),
-          ]);
-        }),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
       ),
-    );
-  }
-}
-
-// ── Banner en camino ─────────────────────────────────────────
-class _BannerEnCamino extends StatelessWidget {
-  final PedidoModel pedido;
-  const _BannerEnCamino({required this.pedido});
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Colors.indigo.shade900, Colors.indigo.shade700],
-        begin: Alignment.topLeft, end: Alignment.bottomRight),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Row(children: [
-      const Text('🛵', style: TextStyle(fontSize: 30)),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('¡Tu pedido está en camino!',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 3),
-        Text(pedido.direccionEntrega?['direccion'] ?? '',
-            style: TextStyle(color: Colors.indigo.shade200, fontSize: 11),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 3),
-        const Text('El repartidor llegará pronto 🔔',
-            style: TextStyle(color: Colors.white60, fontSize: 11)),
-      ])),
-    ]),
-  );
-}
-
-// ── Sheet de detalle completo ────────────────────────────────
-class _DetalleSheet extends StatelessWidget {
-  final PedidoModel pedido;
-  const _DetalleSheet({required this.pedido});
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75, minChildSize: 0.5, maxChildSize: 0.95,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E293B),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 40, height: 4,
-            decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(2))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(children: [
+        // Cabecera
+        InkWell(
+          onTap: () => setState(() => _expandido = !_expandido),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
             child: Row(children: [
-              const Text('Detalle del pedido',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-              const Spacer(),
-              IconButton(icon: const Icon(Icons.close, color: Colors.white70),
-                  onPressed: () => Navigator.pop(context)),
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(child: Text(_emojiEstado,
+                    style: const TextStyle(fontSize: 22))),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(
+                    p.tipoPedido == 'mesa'
+                        ? '🍽️ Mesa ${p.numeroMesa}'
+                        : '🛵 Domicilio',
+                    style: const TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.bold, fontSize: 14),
+                  )),
+                  Text('\$${p.total.toStringAsFixed(2)}',
+                      style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 15)),
+                ]),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(p.estado, style: TextStyle(
+                        color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(fecha, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  const Spacer(),
+                  Text('${p.items.length} producto(s)',
+                      style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                ]),
+              ])),
+              const SizedBox(width: 8),
+              Icon(_expandido ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white38, size: 20),
             ]),
           ),
-          const Divider(color: Colors.white12),
-          Expanded(
-            child: ListView(controller: ctrl, padding: const EdgeInsets.all(20), children: [
-              _DetalleRow(Icons.info_outline, 'Estado', pedido.estado, Colors.blue),
-              _DetalleRow(
-                pedido.tipoPedido == 'domicilio' ? Icons.delivery_dining : Icons.table_restaurant,
-                'Tipo', pedido.tipoPedido == 'domicilio' ? 'Domicilio' : 'Mesa ${pedido.numeroMesa ?? ""}',
-                Colors.orange),
-              _DetalleRow(Icons.calendar_today, 'Fecha',
-                '${pedido.fecha.day}/${pedido.fecha.month}/${pedido.fecha.year}  '
-                '${pedido.fecha.hour}:${pedido.fecha.minute.toString().padLeft(2, '0')}',
-                Colors.purple),
-              if (pedido.direccionEntrega != null)
-                _DetalleRow(Icons.location_on, 'Dirección',
-                    pedido.direccionEntrega!['direccion'] ?? '', Colors.red),
-              _DetalleRow(Icons.payment, 'Pago', pedido.metodoPago, Colors.teal),
+        ),
 
-              if (pedido.tipoPedido == 'domicilio' &&
-                  pedido.estado != 'Entregado' && pedido.estado != 'Cancelado' &&
-                  pedido.codigoVerificacion.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _CodigoVerificacion(codigo: pedido.codigoVerificacion),
+        // Detalles expandibles
+        if (_expandido) ...[
+          const Divider(color: Colors.white10, height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+              // Items
+              ...p.items.map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B35).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Center(child: Text('${item['cantidad'] ?? 1}',
+                        style: const TextStyle(color: Color(0xFFFF6B35),
+                            fontSize: 11, fontWeight: FontWeight.bold))),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    item['productoNombre'] ?? item['nombre'] ?? '',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  )),
+                  Text('\$${((item['precioTotal'] ?? item['precioUnitario'] ?? 0.0)).toStringAsFixed(2)}',
+                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                ]),
+              )),
+
+              const Divider(color: Colors.white10, height: 16),
+
+              // Total + método pago
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Subtotal', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                Text('\$${p.subtotal.toStringAsFixed(2)}',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              ]),
+              const SizedBox(height: 3),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Total', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('\$${p.total.toStringAsFixed(2)}',
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+              ]),
+
+              if (p.metodoPago != null) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Icon(Icons.payment, color: Colors.white38, size: 14),
+                  const SizedBox(width: 6),
+                  Text(p.metodoPago, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                ]),
               ],
 
-              const SizedBox(height: 16),
-              const Divider(color: Colors.white12),
-              const SizedBox(height: 8),
-              const Text('Productos',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 12),
-
-              ...pedido.items.map((item) {
-                final nombre = item['productoNombre'] ?? item['nombre'] ?? 'Producto';
-                final cantidad = (item['cantidad'] ?? 1) as int;
-                final precio = ((item['precioTotal'] ?? item['precio'] ?? 0) as num).toDouble();
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
+              // Código de verificación
+              if (p.codigoVerificacion != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
+                    color: const Color(0xFFFF6B35).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.2)),
+                  ),
                   child: Row(children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                      child: const Text('🍕', style: TextStyle(fontSize: 20)),
-                    ),
-                    const SizedBox(width: 12),
+                    const Text('🔐', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(nombre,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
-                      Text('Cantidad: $cantidad',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                      const Text('Código de verificación',
+                          style: TextStyle(color: Colors.white38, fontSize: 10)),
+                      Text((p.codigoVerificacion ?? '----'),
+                          style: const TextStyle(color: Color(0xFFFF6B35),
+                              fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 4)),
                     ])),
-                    Text('\$${precio.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                    IconButton(
+                      icon: const Icon(Icons.copy, color: Colors.white38, size: 18),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: (p.codigoVerificacion ?? '----')));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Código copiado'),
+                              duration: Duration(seconds: 1)));
+                      },
+                    ),
                   ]),
-                );
-              }),
+                ),
+              ],
 
-              const SizedBox(height: 12),
-              const Divider(color: Colors.white12),
-              const SizedBox(height: 8),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('TOTAL',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text('\$${pedido.total.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
-              ]),
+              // Botón tracking si está en camino
+              if (p.estado == 'En camino' &&
+                  p.tipoPedido == 'domicilio' &&
+                  p.repartidorId != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => TrackingClientePage(pedido: p))),
+                    icon: const Text('🛵', style: TextStyle(fontSize: 16)),
+                    label: const Text('Ver repartidor en mapa',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+
+              // Calificar pedido entregado
+              if (p.estado == 'Entregado') ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => CalificacionPage(pedido: p))),
+                    icon: const Icon(Icons.star_outline, size: 16, color: Color(0xFFFF6B00)),
+                    label: const Text('⭐ Calificar pedido',
+                        style: TextStyle(color: Color(0xFFFF6B00),
+                            fontWeight: FontWeight.bold, fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFFF6B00)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
             ]),
           ),
-        ]),
-      ),
+        ],
+      ]),
     );
   }
-}
-
-class _DetalleRow extends StatelessWidget {
-  final IconData icon;
-  final String label, value;
-  final Color color;
-  const _DetalleRow(this.icon, this.label, this.value, this.color);
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Row(children: [
-      Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, size: 18, color: color),
-      ),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-        Text(value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white)),
-      ])),
-    ]),
-  );
 }

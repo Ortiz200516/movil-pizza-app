@@ -25,7 +25,7 @@ class _HomeRepartidorState extends State<HomeRepartidor> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: Colors.grey.shade100,
+        backgroundColor: Colors.white.withOpacity(0.05),
         appBar: AppBar(
           title: const Text('🛵 Panel Repartidor'),
           backgroundColor: Colors.indigo,
@@ -126,10 +126,10 @@ class _TabDisponibles extends StatelessWidget {
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Text('📦', style: TextStyle(fontSize: 70)),
             const SizedBox(height: 16),
-            Text('No hay pedidos disponibles', style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+            const Text('No hay pedidos disponibles', style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white38)),
             const SizedBox(height: 8),
-            Text('Espera nuevas entregas', style: TextStyle(color: Colors.grey.shade400)),
+            const Text('Espera nuevas entregas', style: TextStyle(color: Colors.white24)),
           ]));
         }
 
@@ -160,19 +160,18 @@ class _CardDisponibleState extends State<_CardDisponible> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.indigo.withOpacity(0.3)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
+        border: Border.all(color: Colors.indigo.withOpacity(0.4)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header verde "LISTO"
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.green.shade50,
+            color: Colors.green.withOpacity(0.12),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(bottom: BorderSide(color: Colors.green.shade200)),
+            border: Border(bottom: BorderSide(color: Colors.green.withOpacity(0.25))),
           ),
           child: Row(children: [
             Container(
@@ -182,10 +181,10 @@ class _CardDisponibleState extends State<_CardDisponible> {
             ),
             const Spacer(),
             Text('#${p.id.substring(0, 6).toUpperCase()}',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white38)),
             const SizedBox(width: 8),
             Text(_tiempoTranscurrido(p.fecha),
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
           ]),
         ),
 
@@ -196,12 +195,12 @@ class _CardDisponibleState extends State<_CardDisponible> {
             Row(children: [
               const Icon(Icons.person, size: 18, color: Colors.indigo),
               const SizedBox(width: 6),
-              Text(p.clienteNombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              Text(p.clienteNombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
               if (p.clienteTelefono != null) ...[
                 const SizedBox(width: 8),
-                Icon(Icons.phone, size: 14, color: Colors.grey.shade400),
+                Icon(Icons.phone, size: 14, color: Colors.white24),
                 const SizedBox(width: 2),
-                Text(p.clienteTelefono!, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                Text(p.clienteTelefono!, style: TextStyle(fontSize: 12, color: Colors.white38)),
               ],
             ]),
             const SizedBox(height: 8),
@@ -209,13 +208,13 @@ class _CardDisponibleState extends State<_CardDisponible> {
             // Dirección
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   const Icon(Icons.location_on, size: 16, color: Colors.red),
                   const SizedBox(width: 6),
                   Expanded(child: Text(p.direccionEntrega?['direccion'] ?? 'Sin dirección',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14))),
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.white))),
                 ]),
                 if ((p.direccionEntrega?['referencia'] ?? '').toString().isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -223,7 +222,7 @@ class _CardDisponibleState extends State<_CardDisponible> {
                     const Icon(Icons.info_outline, size: 14, color: Colors.grey),
                     const SizedBox(width: 6),
                     Expanded(child: Text(p.direccionEntrega!['referencia'].toString(),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                        style: TextStyle(fontSize: 12, color: Colors.white38))),
                   ]),
                 ],
               ]),
@@ -233,16 +232,16 @@ class _CardDisponibleState extends State<_CardDisponible> {
             // Productos
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(10)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Contenido:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Text('Contenido:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70)),
                 const SizedBox(height: 4),
                 ...p.items.take(3).map((i) => Text(
                     '  ${i['cantidad']}× ${i['productoNombre'] ?? i['nombre'] ?? ''}',
-                    style: const TextStyle(fontSize: 13))),
+                    style: const TextStyle(fontSize: 13, color: Colors.white70))),
                 if (p.items.length > 3)
                   Text('  ...y ${p.items.length - 3} más',
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
               ]),
             ),
             const SizedBox(height: 14),
@@ -322,11 +321,11 @@ class _TabMisEntregas extends StatelessWidget {
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Text('🛵', style: TextStyle(fontSize: 70)),
             const SizedBox(height: 16),
-            Text('Sin entregas activas', style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+            const Text('Sin entregas activas', style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white38)),
             const SizedBox(height: 8),
-            Text('Toma un pedido de la pestaña "Disponibles"',
-                style: TextStyle(color: Colors.grey.shade400), textAlign: TextAlign.center),
+            const Text('Toma un pedido de la pestaña "Disponibles"',
+                style: TextStyle(color: Colors.white24), textAlign: TextAlign.center),
           ]));
         }
 
@@ -361,10 +360,9 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.indigo.shade400, width: 2),
-        boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.indigo.withOpacity(0.6), width: 1.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header azul
@@ -373,7 +371,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.indigo.shade50,
+              color: Colors.indigo.withOpacity(0.12),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
             child: Row(children: [
               Container(
@@ -383,7 +381,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
               ),
               const Spacer(),
               Text('#${p.id.substring(0, 6).toUpperCase()}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white38)),
               const SizedBox(width: 8),
               Icon(_expandido ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
             ]),
@@ -405,7 +403,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
                 const SizedBox(width: 24),
                 const Icon(Icons.phone, size: 15, color: Colors.grey),
                 const SizedBox(width: 5),
-                Text(p.clienteTelefono!, style: TextStyle(color: Colors.grey.shade600)),
+                Text(p.clienteTelefono!, style: TextStyle(color: Colors.white38)),
               ]),
             ],
             const SizedBox(height: 10),
@@ -413,7 +411,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
             // Dirección
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
               child: Row(children: [
                 const Icon(Icons.location_on, color: Colors.red, size: 18),
                 const SizedBox(width: 8),
@@ -421,7 +419,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
                   Text(p.direccionEntrega?['direccion'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
                   if ((p.direccionEntrega?['referencia'] ?? '').toString().isNotEmpty)
                     Text(p.direccionEntrega!['referencia'].toString(),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                        style: TextStyle(fontSize: 12, color: Colors.white38)),
                 ])),
               ]),
             ),
@@ -435,19 +433,19 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: const Color(0xFF1A1200),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade300),
+                border: Border.all(color: Colors.orange.withOpacity(0.4)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Row(children: [
                   Icon(Icons.lock, size: 16, color: Colors.orange),
                   SizedBox(width: 6),
-                  Text('Verificar entrega', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text('Verificar entrega', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
                 ]),
                 const SizedBox(height: 6),
                 const Text('Ingresa el código de 6 dígitos del cliente:',
-                    style: TextStyle(fontSize: 13, color: Colors.black54)),
+                    style: TextStyle(fontSize: 13, color: Colors.white54)),
                 const SizedBox(height: 10),
                 Row(children: [
                   Expanded(
@@ -456,14 +454,14 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
                       keyboardType: TextInputType.number,
                       maxLength: 6,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8, color: Colors.white),
                       decoration: InputDecoration(
                         counterText: '',
                         hintText: '------',
-                        hintStyle: TextStyle(color: Colors.grey.shade300, letterSpacing: 8),
-                        filled: true, fillColor: Colors.white,
+                        hintStyle: const TextStyle(color: Colors.white12, letterSpacing: 8),
+                        filled: true, fillColor: const Color(0xFF0F172A),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: Colors.orange.shade300)),
+                            borderSide: BorderSide(color: Colors.orange.withOpacity(0.4))),
                         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                             borderSide: const BorderSide(color: Colors.orange, width: 2)),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -606,15 +604,15 @@ class _TabMiDia extends StatelessWidget {
                 child: Column(children: [
                   const Text('📦', style: TextStyle(fontSize: 60)),
                   const SizedBox(height: 16),
-                  Text('Sin entregas hoy todavía',
-                      style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                  const Text('Sin entregas hoy todavía',
+                      style: TextStyle(fontSize: 16, color: Colors.white38, fontWeight: FontWeight.bold)),
                 ]),
               )
             else ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text('Historial de hoy',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white70)),
               ),
               const SizedBox(height: 10),
               ...pedidos.map((p) {
@@ -623,25 +621,25 @@ class _TabMiDia extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: const Color(0xFF1E293B),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.green.withOpacity(0.3)),
                   ),
                   child: Row(children: [
                     Container(
                       width: 44, height: 44,
-                      decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: Color(0xFF052E16), shape: BoxShape.circle),
                       child: const Center(child: Text('✅', style: TextStyle(fontSize: 20))),
                     ),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(p.clienteNombre,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
                       Text(p.direccionEntrega?['direccion'] ?? '',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                          style: const TextStyle(fontSize: 12, color: Colors.white38),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       Text('$hora · ${p.items.length} productos',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+                          style: const TextStyle(fontSize: 11, color: Colors.white24)),
                     ])),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text('\$${p.total.toStringAsFixed(2)}',

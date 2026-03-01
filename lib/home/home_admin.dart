@@ -13,6 +13,8 @@ import '../admin/pedidos_admin_page.dart';
 import '../admin/reportes_page.dart';
 import '../admin/mesas_admin_page.dart';
 import '../admin/disponibilidad_page.dart';
+import '../admin/dashboard_page.dart';
+import '../admin/cupones_page.dart';
 
 const _estadosActivos = ['Pendiente', 'Preparando', 'Listo', 'En camino'];
 
@@ -60,11 +62,36 @@ class _HomeAdminState extends State<HomeAdmin> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 6,
+      length: 8,
       child: Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
-          title: const Text('👨‍💼 Panel Administrador'),
+          title: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('pedidos')
+                .where('estado', whereIn: ['Pendiente', 'Preparando', 'Listo'])
+                .snapshots(),
+            builder: (_, snap) {
+              final count = snap.data?.docs.length ?? 0;
+              return Row(children: [
+                const Text('👨‍💼 Admin',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                if (count > 0) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.red.withOpacity(0.5))),
+                    child: Text('$count activos',
+                      style: const TextStyle(color: Colors.red,
+                          fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ]);
+            },
+          ),
           backgroundColor: Colors.purple,
           foregroundColor: Colors.white,
           elevation: 0,
@@ -87,6 +114,8 @@ class _HomeAdminState extends State<HomeAdmin> {
               Tab(icon: Icon(Icons.bar_chart, size: 20), text: 'Reportes'),
               Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Mesas'),
               Tab(icon: Icon(Icons.toggle_on, size: 20), text: 'Disponibilidad'),
+              Tab(icon: Icon(Icons.dashboard, size: 20), text: 'Dashboard'),
+              Tab(icon: Icon(Icons.local_offer, size: 20), text: 'Cupones'),
             ],
           ),
           actions: [
@@ -118,6 +147,8 @@ class _HomeAdminState extends State<HomeAdmin> {
             ReportesPage(),
             MesasAdminPage(),
             DisponibilidadPage(),
+            DashboardPage(),
+            CuponesPage(),
           ],
         ),
         floatingActionButton: Builder(
@@ -650,11 +681,11 @@ class _HomeAdminState extends State<HomeAdmin> {
                 }
                 final categoria = categorias.firstWhere((c) => c.id == catSel);
                 await _productoService.agregarProducto(ProductoModel(
-                  id: '', nombre: nombreCtrl.text,
-                  precio: double.tryParse(precioCtrl.text) ?? 0,
-                  descripcion: descCtrl.text,
+                  id: '', nombre: nombreCtrl.text.trim(),
+                  precio: double.tryParse(precioCtrl.text.replaceAll(',', '.')) ?? 0,
+                  descripcion: descCtrl.text.trim(),
                   disponible: true,
-                  categoria: categoria.nombre,
+                  categoria: categoria.nombre, // Guarda el nombre exacto
                 ));
                 if (ctx.mounted) Navigator.pop(ctx);
                 _snack('✅ Producto agregado', Colors.green);
@@ -691,12 +722,12 @@ class _HomeAdminState extends State<HomeAdmin> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
-                value: categorias.any((c) => c.id == catSel || c.nombre == catSel) ? catSel : null,
+                value: categorias.any((c) => c.nombre == catSel) ? catSel : null,
                 items: categorias.map((c) => DropdownMenuItem(
                   value: c.nombre,
                   child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),
                 )).toList(),
-                onChanged: (v) => setD(() => catSel = v!),
+                onChanged: (v) => setD(() => catSel = v ?? catSel),
               ),
               SwitchListTile(
                 title: const Text('Disponible'),

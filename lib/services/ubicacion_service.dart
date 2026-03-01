@@ -14,7 +14,7 @@ external void _getOnce(JSFunction onSuccess, JSFunction onError);
 
 /// Publica la ubicación del repartidor en Firestore cada ~5 s (via watchPosition)
 class UbicacionService {
-  final _db   = FirebaseFirestore.instance;
+  final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   JSNumber? _watchId;
 
@@ -26,16 +26,17 @@ class UbicacionService {
     _watchId = _startWatch(
       ((JSNumber lat, JSNumber lng, JSNumber acc) {
         _db.collection('ubicaciones').doc(uid).set({
-          'lat':          lat.toDartDouble,
-          'lng':          lng.toDartDouble,
-          'precision':    acc.toDartDouble,
+          'lat': lat.toDartDouble,
+          'lng': lng.toDartDouble,
+          'precision': acc.toDartDouble,
           'actualizadoEn': FieldValue.serverTimestamp(),
-          'activo':       true,
+          'activo': true,
         });
       }).toJS,
       ((JSString err) {
         // Error silencioso — no bloqueamos UI
-      }).toJS,
+      })
+          .toJS,
     );
   }
 
@@ -60,33 +61,48 @@ class UbicacionService {
     return completer.future;
   }
 
+  /// Stream del estado en tiempo real de un pedido.
+  static Stream<String> streamEstadoPedido(String pedidoId) {
+    return FirebaseFirestore.instance
+        .collection('pedidos')
+        .doc(pedidoId)
+        .snapshots()
+        .map((doc) => doc.exists
+            ? (doc.data()?['estado'] as String? ?? 'Pendiente')
+            : 'Pendiente');
+  }
+
   /// Stream de la ubicación del repartidor asignado a un pedido.
-  static Stream<({double lat, double lng})?> streamUbicacionRepartidor(String repartidorId) {
+  static Stream<({double lat, double lng})?> streamUbicacionRepartidor(
+      String repartidorId) {
     return FirebaseFirestore.instance
         .collection('ubicaciones')
         .doc(repartidorId)
         .snapshots()
         .map((doc) {
-          if (!doc.exists) return null;
-          final d = doc.data()!;
-          final activo = d['activo'] as bool? ?? false;
-          if (!activo) return null;
-          final lat = (d['lat'] as num?)?.toDouble();
-          final lng = (d['lng'] as num?)?.toDouble();
-          if (lat == null || lng == null) return null;
-          return (lat: lat, lng: lng);
-        });
+      if (!doc.exists) return null;
+      final d = doc.data()!;
+      final activo = d['activo'] as bool? ?? false;
+      if (!activo) return null;
+      final lat = (d['lat'] as num?)?.toDouble();
+      final lng = (d['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) return null;
+      return (lat: lat, lng: lng);
+    });
   }
 }
 
 // Mini completer para convertir callback → Future
 class _Completer<T> {
-  T? _value; bool _done = false;
+  T? _value;
+  bool _done = false;
   final List<Function(T)> _listeners = [];
   void complete(T value) {
-    _value = value; _done = true;
+    _value = value;
+    _done = true;
     for (final l in _listeners) l(value);
   }
+
   Future<T> get future async {
     if (_done) return _value as T;
     await Future.delayed(const Duration(milliseconds: 100));

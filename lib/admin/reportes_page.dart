@@ -1,3 +1,4 @@
+import 'exportar_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/pedido_model.dart';
@@ -13,517 +14,524 @@ class _ReportesPageState extends State<ReportesPage> {
 
   static const _periodos = [
     ('hoy',    'Hoy'),
-    ('ayer',   'Ayer'),
     ('semana', '7 días'),
-    ('mes',    'Este mes'),
+    ('mes',    'Mes'),
   ];
 
   DateTime get _desde {
     final now = DateTime.now();
     switch (_periodo) {
       case 'hoy':    return DateTime(now.year, now.month, now.day);
-      case 'ayer':   return DateTime(now.year, now.month, now.day - 1);
       case 'semana': return now.subtract(const Duration(days: 7));
       case 'mes':    return DateTime(now.year, now.month, 1);
       default:       return DateTime(now.year, now.month, now.day);
     }
   }
 
-  DateTime get _hasta {
-    if (_periodo == 'ayer') {
-      final now = DateTime.now();
-      return DateTime(now.year, now.month, now.day - 1, 23, 59, 59);
-    }
-    return DateTime.now();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      // Selector de período
-      Container(
-        color: Colors.purple.shade50,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            const Icon(Icons.date_range, color: Colors.purple, size: 18),
-            const SizedBox(width: 8),
-            const Text('Período:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(width: 10),
-            ..._periodos.map((p) {
-              final (val, label) = p;
-              final sel = _periodo == val;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() => _periodo = val),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: sel ? Colors.purple : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: sel ? Colors.purple : Colors.grey.shade300),
-                    ),
-                    child: Text(label, style: TextStyle(
-                      fontSize: 12,
-                      color: sel ? Colors.white : Colors.grey.shade700,
-                      fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                    )),
-                  ),
-                ),
-              );
-            }),
-          ]),
-        ),
-      ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('pedidos')
+          .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(_desde))
+          .snapshots(),
+      builder: (context, snap) {
+        final pedidos = snap.hasData
+            ? snap.data!.docs
+                .map((d) => PedidoModel.fromFirestore(d.id, d.data() as Map<String, dynamic>))
+                .toList()
+            : <PedidoModel>[];
 
-      // Cuerpo con datos
-      Expanded(
-        child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('pedidos')
-              .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(_desde))
-              .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(_hasta))
-              .snapshots(),
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.purple));
-            }
-            final docs = snap.data?.docs ?? [];
-            final todos = docs.map((d) =>
-                PedidoModel.fromFirestore(d.id, d.data() as Map<String, dynamic>)).toList();
-            final entregados = todos.where((p) => p.estado == 'Entregado').toList();
-            final cancelados = todos.where((p) => p.estado == 'Cancelado').length;
-            final activos    = todos.where((p) =>
-                !['Entregado','Cancelado'].contains(p.estado)).length;
+        final entregados  = pedidos.where((p) => p.estado == 'Entregado').toList();
+        final cancelados  = pedidos.where((p) => p.estado == 'Cancelado').length;
+        final enProceso   = pedidos.where((p) => p.estado != 'Entregado' && p.estado != 'Cancelado').length;
+        final ventas      = entregados.fold(0.0, (s, p) => s + p.total);
+        final ticketProm  = entregados.isEmpty ? 0.0 : ventas / entregados.length;
 
-            if (todos.isEmpty) {
-              return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Text('📊', style: TextStyle(fontSize: 60)),
-                const SizedBox(height: 12),
-                Text('Sin datos para este período',
-                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text('Los reportes aparecen cuando hay pedidos',
-                    style: TextStyle(color: Colors.grey.shade400)),
-              ]));
-            }
-
-            final totalVentas    = entregados.fold(0.0, (s, p) => s + p.total);
-            final ticketPromedio = entregados.isNotEmpty ? totalVentas / entregados.length : 0.0;
-            final pedidosMesa    = entregados.where((p) => p.tipoPedido == 'mesa').length;
-            final pedidosDom     = entregados.where((p) => p.tipoPedido == 'domicilio').length;
-
-            // Productos más vendidos
-            final Map<String, int>    vendidos  = {};
-            final Map<String, double> ingresos  = {};
-            for (final p in entregados) {
-              for (final item in p.items) {
-                final nombre   = (item['productoNombre'] ?? item['nombre'] ?? 'Sin nombre') as String;
-                final cantidad = (item['cantidad'] ?? 1) as int;
-                final ingreso  = ((item['precioTotal'] ?? item['precio'] ?? 0) as num).toDouble();
-                vendidos[nombre] = (vendidos[nombre] ?? 0) + cantidad;
-                ingresos[nombre] = (ingresos[nombre] ?? 0) + ingreso;
-              }
-            }
-            final top5 = (vendidos.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value))).take(5).toList();
-
-            // Ventas por hora (hoy/ayer) o por día (semana/mes)
-            final tendencia = _calcularTendencia(entregados);
-
-            return ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                // ── KPIs principales ──
-                _TituloSeccion('📈 Resumen del período'),
-                const SizedBox(height: 10),
-                Row(children: [
-                  _KpiCard('💰 Ventas', '\$${totalVentas.toStringAsFixed(2)}', Colors.green),
-                  const SizedBox(width: 10),
-                  _KpiCard('📦 Pedidos', '${entregados.length}', Colors.blue),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  _KpiCard('🎯 Ticket prom.', '\$${ticketPromedio.toStringAsFixed(2)}', Colors.orange),
-                  const SizedBox(width: 10),
-                  _KpiCard('🔄 Activos ahora', '$activos', Colors.purple),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  _KpiCard('🍽️ Mesas', '$pedidosMesa', Colors.teal),
-                  const SizedBox(width: 10),
-                  _KpiCard('❌ Cancelados', '$cancelados', Colors.red),
-                ]),
-
-                const SizedBox(height: 20),
-
-                // ── Gráfica de tendencia ──
-                if (tendencia.isNotEmpty) ...[
-                  _TituloSeccion(
-                    _periodo == 'hoy' || _periodo == 'ayer'
-                        ? '⏱️ Ventas por hora'
-                        : '📅 Ventas por día'),
-                  const SizedBox(height: 10),
-                  _GraficaTendencia(datos: tendencia, periodo: _periodo),
-                  const SizedBox(height: 20),
-                ],
-
-                // ── Top productos ──
-                if (top5.isNotEmpty) ...[
-                  _TituloSeccion('🏆 Productos más vendidos'),
-                  const SizedBox(height: 10),
-                  _TopProductos(top5: top5, ingresos: ingresos),
-                  const SizedBox(height: 20),
-                ],
-
-                // ── Distribución mesa vs domicilio ──
-                if (entregados.isNotEmpty) ...[
-                  _TituloSeccion('📊 Canal de pedidos'),
-                  const SizedBox(height: 10),
-                  _Distribucion(
-                    pedidosMesa: pedidosMesa,
-                    pedidosDom: pedidosDom,
-                    total: entregados.length,
-                    ventasMesa: entregados.where((p) => p.tipoPedido == 'mesa')
-                        .fold(0.0, (s, p) => s + p.total),
-                    ventasDom: entregados.where((p) => p.tipoPedido == 'domicilio')
-                        .fold(0.0, (s, p) => s + p.total),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // ── Horario pico ──
-                if (entregados.length >= 3) ...[
-                  _TituloSeccion('🕐 Hora pico'),
-                  const SizedBox(height: 10),
-                  _HoraPico(pedidos: entregados),
-                  const SizedBox(height: 20),
-                ],
+        return Column(children: [
+          // ── Selector de periodo ──────────────────────────
+          Container(
+            color: const Color(0xFF0F172A),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Row(children: [
+              const Text('📊', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              const Text('Reportes', style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              const Spacer(),
+              PopupMenuButton<String>(
+              icon: const Icon(Icons.download_outlined, color: Colors.white54, size: 20),
+              color: const Color(0xFF1E293B),
+              tooltip: 'Exportar',
+              onSelected: (v) async {
+                final ahora = DateTime.now();
+                if (v == 'pedidos') {
+                  await ExportarService.exportarPedidosCSV(desde: _desde, hasta: ahora);
+                } else {
+                  await ExportarService.exportarResumenCSV(desde: _desde, hasta: ahora);
+                }
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('📥 Descarga iniciada'),
+                      backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'pedidos', child: Row(children: [
+                  Icon(Icons.receipt_long, size: 16, color: Colors.white54),
+                  SizedBox(width: 8),
+                  Text('Pedidos CSV', style: TextStyle(color: Colors.white)),
+                ])),
+                const PopupMenuItem(value: 'resumen', child: Row(children: [
+                  Icon(Icons.bar_chart, size: 16, color: Colors.white54),
+                  SizedBox(width: 8),
+                  Text('Resumen CSV', style: TextStyle(color: Colors.white)),
+                ])),
               ],
-            );
-          },
-        ),
-      ),
-    ]);
+            ),
+            ..._periodos.map((p) {
+                final sel = _periodo == p.$1;
+                return GestureDetector(
+                  onTap: () => setState(() => _periodo = p.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: sel ? const Color(0xFFFF6B00).withOpacity(0.2) : const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: sel ? const Color(0xFFFF6B00) : Colors.white12,
+                        width: sel ? 1.5 : 1),
+                    ),
+                    child: Text(p.$2, style: TextStyle(
+                      color: sel ? const Color(0xFFFF6B00) : Colors.white38,
+                      fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12)),
+                  ),
+                );
+              }),
+            ]),
+          ),
+
+          Expanded(
+            child: snap.connectionState == ConnectionState.waiting
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF6B00)))
+                : ListView(
+                    padding: const EdgeInsets.all(14),
+                    children: [
+
+                      // ── KPIs ─────────────────────────────
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 10, mainAxisSpacing: 10,
+                        childAspectRatio: 1.6,
+                        children: [
+                          _KpiCard('💰', 'Ventas', '\$${ventas.toStringAsFixed(2)}', const Color(0xFF4ADE80)),
+                          _KpiCard('📦', 'Entregados', '${entregados.length}', const Color(0xFF38BDF8)),
+                          _KpiCard('🎯', 'Ticket prom.', '\$${ticketProm.toStringAsFixed(2)}', const Color(0xFFFF6B00)),
+                          _KpiCard('❌', 'Cancelados', '$cancelados', Colors.red.shade400),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // En proceso
+                      if (enProceso > 0)
+                        _InfoBanner('⏳ $enProceso pedidos en proceso ahora mismo', Colors.orange),
+
+                      const SizedBox(height: 14),
+
+                      // ── Ventas por día ────────────────────
+                      if (_periodo != 'hoy')
+                        _GraficaVentasDia(pedidos: entregados, periodo: _periodo),
+
+                      const SizedBox(height: 14),
+
+                      // ── Top productos ─────────────────────
+                      _TopProductos(pedidos: entregados),
+                      const SizedBox(height: 14),
+
+                      // ── Métodos de pago ───────────────────
+                      _MetodosPago(pedidos: entregados),
+                      const SizedBox(height: 14),
+
+                      // ── Tipos de pedido ───────────────────
+                      _TiposPedido(pedidos: entregados),
+                      const SizedBox(height: 14),
+
+                      // ── Horas pico ────────────────────────
+                      _HorasPico(pedidos: pedidos),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+          ),
+        ]);
+      },
+    );
   }
-
-  List<_PuntoDato> _calcularTendencia(List<PedidoModel> pedidos) {
-    if (pedidos.isEmpty) return [];
-    if (_periodo == 'hoy' || _periodo == 'ayer') {
-      // Agrupar por hora (0-23)
-      final Map<int, double> porHora = {};
-      for (final p in pedidos) {
-        final h = p.fecha.hour;
-        porHora[h] = (porHora[h] ?? 0) + p.total;
-      }
-      if (porHora.isEmpty) return [];
-      final minH = porHora.keys.reduce((a, b) => a < b ? a : b);
-      final maxH = porHora.keys.reduce((a, b) => a > b ? a : b);
-      return List.generate(maxH - minH + 1, (i) {
-        final h = minH + i;
-        return _PuntoDato('${h}h', porHora[h] ?? 0);
-      });
-    } else {
-      // Agrupar por día
-      final Map<String, double> porDia = {};
-      for (final p in pedidos) {
-        final key = '${p.fecha.day.toString().padLeft(2,'0')}/${p.fecha.month.toString().padLeft(2,'0')}';
-        porDia[key] = (porDia[key] ?? 0) + p.total;
-      }
-      final dias = porDia.keys.toList()..sort();
-      return dias.map((d) => _PuntoDato(d, porDia[d]!)).toList();
-    }
-  }
-}
-
-class _PuntoDato { final String label; final double valor;
-  const _PuntoDato(this.label, this.valor); }
-
-// ── Título de sección ─────────────────────────────────────────
-class _TituloSeccion extends StatelessWidget {
-  final String texto;
-  const _TituloSeccion(this.texto);
-  @override
-  Widget build(BuildContext context) => Text(texto,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold));
 }
 
 // ── KPI card ──────────────────────────────────────────────────
 class _KpiCard extends StatelessWidget {
-  final String label, value; final Color color;
-  const _KpiCard(this.label, this.value, this.color);
+  final String icono, titulo, valor;
+  final Color color;
+  const _KpiCard(this.icono, this.titulo, this.valor, this.color);
   @override
-  Widget build(BuildContext context) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.25)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0,2))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        const SizedBox(height: 6),
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-      ]),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFF1E293B),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: color.withOpacity(0.3)),
     ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Row(children: [
+        Text(icono, style: const TextStyle(fontSize: 20)),
+        const Spacer(),
+        Container(width: 8, height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      ]),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(valor, style: TextStyle(
+            color: color, fontSize: 22, fontWeight: FontWeight.w900)),
+        Text(titulo, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      ]),
+    ]),
   );
 }
 
-// ── Gráfica de tendencia (barras custom sin librería) ─────────
-class _GraficaTendencia extends StatelessWidget {
-  final List<_PuntoDato> datos;
+class _InfoBanner extends StatelessWidget {
+  final String texto; final Color color;
+  const _InfoBanner(this.texto, this.color);
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Row(children: [
+      Text(texto, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+    ]),
+  );
+}
+
+// ── Gráfica ventas por día ────────────────────────────────────
+class _GraficaVentasDia extends StatelessWidget {
+  final List<PedidoModel> pedidos;
   final String periodo;
-  const _GraficaTendencia({required this.datos, required this.periodo});
+  const _GraficaVentasDia({required this.pedidos, required this.periodo});
 
   @override
   Widget build(BuildContext context) {
-    final maxVal = datos.map((d) => d.valor).reduce((a, b) => a > b ? a : b);
-    final totalVentas = datos.fold(0.0, (s, d) => s + d.valor);
+    // Agrupar ventas por día
+    final Map<String, double> porDia = {};
+    for (final p in pedidos) {
+      final key = '${p.fecha.day.toString().padLeft(2,'0')}/'
+          '${p.fecha.month.toString().padLeft(2,'0')}';
+      porDia[key] = (porDia[key] ?? 0) + p.total;
+    }
+    if (porDia.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text('Total: \$${totalVentas.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green))),
-          Text('${datos.length} ${periodo == 'hoy' || periodo == 'ayer' ? 'horas' : 'días'}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-        ]),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 120,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: datos.map((d) {
-              final pct = maxVal > 0 ? d.valor / maxVal : 0.0;
-              final esMax = d.valor == maxVal;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    if (esMax)
-                      Text('\$${d.valor.toStringAsFixed(0)}',
-                          style: const TextStyle(fontSize: 8, color: Colors.purple,
-                              fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      height: (pct * 90).clamp(4.0, 90.0),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: esMax
-                              ? [Colors.purple, Colors.purple.shade300]
-                              : [Colors.purple.shade200, Colors.purple.shade100],
-                          begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+    final keys = porDia.keys.toList()..sort();
+    final maxVal = porDia.values.reduce((a, b) => a > b ? a : b);
+
+    return _SeccionCard(
+      titulo: '📈 Ventas por día',
+      child: SizedBox(
+        height: 160,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: keys.map((k) {
+            final val = porDia[k]!;
+            final pct = maxVal > 0 ? val / maxVal : 0.0;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  Text('\$${val.toStringAsFixed(0)}',
+                      style: const TextStyle(color: Colors.white38, fontSize: 8)),
+                  const SizedBox(height: 3),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 500),
+                    height: (120 * pct).clamp(4.0, 120.0),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [const Color(0xFFFF6B00), const Color(0xFFFFB800)]),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    const SizedBox(height: 4),
-                    Text(d.label, style: TextStyle(fontSize: 8, color: Colors.grey.shade500),
-                        overflow: TextOverflow.ellipsis),
-                  ]),
-                ),
-              );
-            }).toList(),
-          ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(k, style: const TextStyle(color: Colors.white38, fontSize: 9),
+                      overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+            );
+          }).toList(),
         ),
-      ]),
+      ),
     );
   }
 }
 
 // ── Top productos ─────────────────────────────────────────────
 class _TopProductos extends StatelessWidget {
-  final List<MapEntry<String, int>> top5;
-  final Map<String, double> ingresos;
-  const _TopProductos({required this.top5, required this.ingresos});
+  final List<PedidoModel> pedidos;
+  const _TopProductos({required this.pedidos});
 
   @override
   Widget build(BuildContext context) {
-    final maxVal = top5.isNotEmpty ? top5.first.value : 1;
-    const medallas = ['🥇','🥈','🥉','4°','5°'];
-    final colores  = [Colors.amber, Colors.blueGrey, Colors.brown.shade300, Colors.purple, Colors.teal];
+    final Map<String, int> conteo = {};
+    for (final p in pedidos) {
+      for (final item in p.items) {
+        final nombre = item['productoNombre'] ?? item['nombre'] ?? 'Desconocido';
+        conteo[nombre] = (conteo[nombre] ?? 0) + ((item['cantidad'] ?? 1) as int);
+      }
+    }
+    if (conteo.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))],
-      ),
-      child: Column(children: top5.asMap().entries.map((e) {
-        final i = e.key;
-        final nombre   = e.value.key;
-        final cantidad = e.value.value;
-        final ingreso  = ingresos[nombre] ?? 0;
-        final pct      = cantidad / maxVal;
-        final color    = colores[i];
+    final top = conteo.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final lista = top.take(5).toList();
+    final maxVal = lista.first.value;
+    final medals = ['🥇', '🥈', '🥉', '4°', '5°'];
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Text(medallas[i], style: const TextStyle(fontSize: 18)),
+    return _SeccionCard(
+      titulo: '🏆 Top 5 productos',
+      child: Column(
+        children: List.generate(lista.length, (i) {
+          final pct = lista[i].value / maxVal;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(children: [
+              SizedBox(width: 24,
+                  child: Text(medals[i],
+                      style: const TextStyle(fontSize: 14), textAlign: TextAlign.center)),
               const SizedBox(width: 8),
-              Expanded(child: Text(nombre,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-              Text('$cantidad uds', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(lista[i].key, style: const TextStyle(
+                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withOpacity(0.06),
+                    valueColor: AlwaysStoppedAnimation(
+                        i == 0 ? const Color(0xFFFFB800)
+                        : i == 1 ? const Color(0xFF94A3B8)
+                        : const Color(0xFFFF6B00)),
+                  ),
+                ),
+              ])),
               const SizedBox(width: 8),
-              Text('\$${ingreso.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
+              Text('×${lista[i].value}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12,
+                      fontWeight: FontWeight.bold)),
             ]),
-            const SizedBox(height: 5),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: pct, minHeight: 7,
-                backgroundColor: Colors.grey.shade100,
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-              ),
-            ),
-          ]),
-        );
-      }).toList()),
+          );
+        }),
+      ),
     );
   }
 }
 
-// ── Distribución mesa vs domicilio ────────────────────────────
-class _Distribucion extends StatelessWidget {
-  final int pedidosMesa, pedidosDom, total;
-  final double ventasMesa, ventasDom;
-  const _Distribucion({required this.pedidosMesa, required this.pedidosDom,
-      required this.total, required this.ventasMesa, required this.ventasDom});
+// ── Métodos de pago ───────────────────────────────────────────
+class _MetodosPago extends StatelessWidget {
+  final List<PedidoModel> pedidos;
+  const _MetodosPago({required this.pedidos});
 
   @override
   Widget build(BuildContext context) {
-    final pctMesa = total > 0 ? pedidosMesa / total : 0.0;
-    final pctDom  = total > 0 ? pedidosDom  / total : 0.0;
+    if (pedidos.isEmpty) return const SizedBox.shrink();
+    final Map<String, int> conteo = {};
+    for (final p in pedidos) {
+      final m = p.metodoPago ?? 'efectivo';
+      conteo[m] = (conteo[m] ?? 0) + 1;
+    }
+    final total = pedidos.length;
+    final colores = {
+      'efectivo': Colors.green,
+      'tarjeta': Colors.blue,
+      'transferencia': Colors.purple,
+    };
+    final iconos = {'efectivo': '💵', 'tarjeta': '💳', 'transferencia': '📱'};
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))],
+    return _SeccionCard(
+      titulo: '💳 Métodos de pago',
+      child: Column(
+        children: conteo.entries.map((e) {
+          final pct = e.value / total;
+          final color = colores[e.key] ?? Colors.orange;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(children: [
+              Text(iconos[e.key] ?? '💰', style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text(_capitalizar(e.key), style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  Text('${(pct * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct, minHeight: 6,
+                    backgroundColor: Colors.white.withOpacity(0.06),
+                    valueColor: AlwaysStoppedAnimation(color),
+                  ),
+                ),
+              ])),
+              const SizedBox(width: 10),
+              Text('${e.value}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            ]),
+          );
+        }).toList(),
       ),
-      child: Column(children: [
-        // Barra visual dividida
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Row(children: [
-            Expanded(flex: (pctMesa * 100).round(),
-              child: Container(height: 16, color: Colors.teal)),
-            Expanded(flex: (pctDom * 100).round().clamp(1, 100),
-              child: Container(height: 16, color: Colors.indigo)),
-          ]),
-        ),
-        const SizedBox(height: 14),
-        Row(children: [
-          _DistItem('🍽️ Mesa', pedidosMesa, pctMesa, '\$${ventasMesa.toStringAsFixed(2)}', Colors.teal),
-          Container(width: 1, height: 40, color: Colors.grey.shade200, margin: const EdgeInsets.symmetric(horizontal: 12)),
-          _DistItem('🛵 Domicilio', pedidosDom, pctDom, '\$${ventasDom.toStringAsFixed(2)}', Colors.indigo),
-        ]),
+    );
+  }
+}
+
+// ── Tipos de pedido ───────────────────────────────────────────
+class _TiposPedido extends StatelessWidget {
+  final List<PedidoModel> pedidos;
+  const _TiposPedido({required this.pedidos});
+
+  @override
+  Widget build(BuildContext context) {
+    if (pedidos.isEmpty) return const SizedBox.shrink();
+    final mesa      = pedidos.where((p) => p.tipoPedido == 'mesa').length;
+    final domicilio = pedidos.where((p) => p.tipoPedido == 'domicilio').length;
+    final total     = pedidos.length;
+
+    return _SeccionCard(
+      titulo: '🍽️ Tipo de pedido',
+      child: Row(children: [
+        Expanded(child: _DonutSegmento(
+          icono: '🍽️', label: 'Mesa',
+          valor: mesa, total: total,
+          color: const Color(0xFF38BDF8),
+        )),
+        Container(width: 1, height: 60, color: Colors.white10),
+        Expanded(child: _DonutSegmento(
+          icono: '🛵', label: 'Domicilio',
+          valor: domicilio, total: total,
+          color: const Color(0xFFFF6B00),
+        )),
       ]),
     );
   }
 }
 
-class _DistItem extends StatelessWidget {
-  final String label, ventas; final int count; final double pct; final Color color;
-  const _DistItem(this.label, this.count, this.pct, this.ventas, this.color);
+class _DonutSegmento extends StatelessWidget {
+  final String icono, label;
+  final int valor, total;
+  final Color color;
+  const _DonutSegmento({required this.icono, required this.label,
+      required this.valor, required this.total, required this.color});
   @override
-  Widget build(BuildContext context) => Expanded(
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? (valor / total * 100) : 0.0;
+    return Column(children: [
+      Text(icono, style: const TextStyle(fontSize: 28)),
+      const SizedBox(height: 6),
+      Text('$valor', style: TextStyle(
+          color: color, fontSize: 24, fontWeight: FontWeight.w900)),
+      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+      Text('${pct.toStringAsFixed(0)}%',
+          style: TextStyle(color: color.withOpacity(0.7), fontSize: 11)),
+    ]);
+  }
+}
+
+// ── Horas pico ────────────────────────────────────────────────
+class _HorasPico extends StatelessWidget {
+  final List<PedidoModel> pedidos;
+  const _HorasPico({required this.pedidos});
+
+  @override
+  Widget build(BuildContext context) {
+    if (pedidos.isEmpty) return const SizedBox.shrink();
+    final Map<int, int> porHora = {};
+    for (final p in pedidos) {
+      porHora[p.fecha.hour] = (porHora[p.fecha.hour] ?? 0) + 1;
+    }
+    if (porHora.isEmpty) return const SizedBox.shrink();
+    final maxVal = porHora.values.reduce((a, b) => a > b ? a : b);
+    // Mostrar horas relevantes (9am - 11pm)
+    final horas = List.generate(15, (i) => i + 9);
+
+    return _SeccionCard(
+      titulo: '⏰ Horas pico',
+      child: SizedBox(
+        height: 100,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: horas.map((h) {
+            final val = porHora[h] ?? 0;
+            final pct = maxVal > 0 ? val / maxVal : 0.0;
+            final esPico = val == maxVal && val > 0;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  if (val > 0)
+                    Text('$val', style: TextStyle(
+                        color: esPico ? const Color(0xFFFF6B00) : Colors.white24,
+                        fontSize: 8)),
+                  const SizedBox(height: 2),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 500),
+                    height: (70 * pct).clamp(2.0, 70.0),
+                    decoration: BoxDecoration(
+                      color: esPico
+                          ? const Color(0xFFFF6B00)
+                          : const Color(0xFF334155),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${h}h', style: const TextStyle(
+                      color: Colors.white24, fontSize: 8)),
+                ]),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sección card ──────────────────────────────────────────────
+class _SeccionCard extends StatelessWidget {
+  final String titulo;
+  final Widget child;
+  const _SeccionCard({required this.titulo, required this.child});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFF1E293B),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withOpacity(0.06)),
+    ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-      ]),
-      const SizedBox(height: 4),
-      Text('$count pedidos · ${(pct * 100).toStringAsFixed(0)}%',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-      Text(ventas, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+      Text(titulo, style: const TextStyle(
+          color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+      const SizedBox(height: 14),
+      child,
     ]),
   );
 }
 
-// ── Hora pico ─────────────────────────────────────────────────
-class _HoraPico extends StatelessWidget {
-  final List<PedidoModel> pedidos;
-  const _HoraPico({required this.pedidos});
-
-  @override
-  Widget build(BuildContext context) {
-    final Map<int, int> porHora = {};
-    for (final p in pedidos) {
-      final h = p.fecha.hour;
-      porHora[h] = (porHora[h] ?? 0) + 1;
-    }
-    if (porHora.isEmpty) return const SizedBox.shrink();
-    final pico = porHora.entries.reduce((a, b) => a.value > b.value ? a : b);
-    final totalHoras = porHora.length;
-    // Top 3 horas
-    final top3 = (porHora.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).take(3).toList();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-            child: const Text('🕐', style: TextStyle(fontSize: 24)),
-          ),
-          const SizedBox(width: 14),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Hora pico: ${pico.key}:00 – ${pico.key + 1}:00',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            Text('${pico.value} pedidos · $totalHoras horas activas',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-          ]),
-        ]),
-        const SizedBox(height: 14),
-        const Divider(),
-        const SizedBox(height: 8),
-        const Text('Top 3 horas:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-        const SizedBox(height: 8),
-        ...top3.asMap().entries.map((e) {
-          final medallas = ['🥇','🥈','🥉'];
-          final h = e.value.key;
-          final n = e.value.value;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 5),
-            child: Row(children: [
-              Text(medallas[e.key], style: const TextStyle(fontSize: 14)),
-              const SizedBox(width: 8),
-              Text('${h.toString().padLeft(2,'0')}:00 – ${(h+1).toString().padLeft(2,'0')}:00',
-                  style: const TextStyle(fontSize: 13)),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-                child: Text('$n pedidos',
-                    style: TextStyle(color: Colors.orange.shade700, fontWeight: FontWeight.bold, fontSize: 12)),
-              ),
-            ]),
-          );
-        }),
-      ]),
-    );
-  }
-}
+String _capitalizar(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);

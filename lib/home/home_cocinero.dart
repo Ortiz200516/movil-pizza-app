@@ -232,8 +232,11 @@ class _TabHistorial extends StatelessWidget {
                 Text(cancelado ? '❌' : '✅', style: const TextStyle(fontSize: 20)),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(p.clienteNombre, style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Expanded(child: Text(p.clienteNombre, style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
+                    _TimerBadge(fecha: p.fecha),
+                  ]),
                   Text(
                     '${p.tipoPedido == 'mesa' ? 'Mesa ${p.numeroMesa}' : 'Domicilio'} · '
                     '${p.items.length} producto(s)',
@@ -570,6 +573,42 @@ class _PedidoCard extends StatelessWidget {
           ),
         ],
       ]),
+    );
+  }
+}
+// ── Timer badge por pedido ────────────────────────────────────
+class _TimerBadge extends StatefulWidget {
+  final DateTime fecha;
+  const _TimerBadge({required this.fecha});
+  @override
+  State<_TimerBadge> createState() => _TimerBadgeState();
+}
+
+class _TimerBadgeState extends State<_TimerBadge> {
+  late DateTime _ahora;
+  @override
+  void initState() { super.initState(); _ahora = DateTime.now(); _tick(); }
+  void _tick() {
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) setState(() { _ahora = DateTime.now(); _tick(); });
+    });
+  }
+  @override
+  Widget build(BuildContext context) {
+    final mins = _ahora.difference(widget.fecha).inMinutes;
+    final urgente = mins >= 15;
+    final color = urgente ? Colors.red : mins >= 8 ? Colors.orange : Colors.white24;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(urgente ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(
+        mins == 0 ? 'Ahora' : '${mins}m',
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
     );
   }
 }

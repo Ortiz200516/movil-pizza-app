@@ -4,7 +4,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/pedido_model.dart';
 import '../services/ubicacion_service.dart';
 
-/// Página que el CLIENTE abre para ver dónde está su repartidor en tiempo real.
 class TrackingClientePage extends StatefulWidget {
   final PedidoModel pedido;
   const TrackingClientePage({super.key, required this.pedido});
@@ -12,38 +11,65 @@ class TrackingClientePage extends StatefulWidget {
   State<TrackingClientePage> createState() => _TrackingClientePageState();
 }
 
-class _TrackingClientePageState extends State<TrackingClientePage> {
+class _TrackingClientePageState extends State<TrackingClientePage>
+    with SingleTickerProviderStateMixin {
   GoogleMapController? _mapCtrl;
-  StreamSubscription?  _sub;
+  StreamSubscription?  _subUbic;
+  StreamSubscription?  _subPedido;
+
   LatLng? _posRepartidor;
   LatLng? _posCliente;
+  String  _estadoActual = '';
   bool    _centrado = false;
 
-  // Coordenadas de la pizzería (origen)
-  static const _pizzeria = LatLng(-2.1894, -79.8891); // Guayaquil — ajusta según tu local
+  late AnimationController _pulseCtrl;
+
+  static const _pizzeria = LatLng(-2.1894, -79.8891);
+
+  // Pasos del flujo de entrega
+  static const _pasos = [
+    ('Pendiente',   '⏳', 'Pedido recibido'),
+    ('Preparando',  '👨‍🍳', 'En la cocina'),
+    ('Listo',       '✅', 'Listo para entregar'),
+    ('En camino',   '🛵', 'En camino'),
+    ('Entregado',   '📦', 'Entregado'),
+  ];
 
   @override
   void initState() {
     super.initState();
+    _estadoActual = widget.pedido.estado;
+
+    _pulseCtrl = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1000))
+      ..repeat(reverse: true);
+
     _iniciarTracking();
     _obtenerPosCliente();
+    _escucharEstadoPedido();
   }
 
   void _iniciarTracking() {
     final rid = widget.pedido.repartidorId;
     if (rid == null) return;
-
-    _sub = UbicacionService.streamUbicacionRepartidor(rid).listen((pos) {
+    _subUbic = UbicacionService.streamUbicacionRepartidor(rid).listen((pos) {
       if (!mounted) return;
       setState(() {
         _posRepartidor = pos != null ? LatLng(pos.lat, pos.lng) : null;
       });
-      // Centrar mapa la primera vez que llega posición
       if (pos != null && !_centrado && _mapCtrl != null) {
         _centrado = true;
-        _mapCtrl!.animateCamera(CameraUpdate.newLatLngZoom(
-            LatLng(pos.lat, pos.lng), 15));
+        _mapCtrl!.animateCamera(
+            CameraUpdate.newLatLngZoom(LatLng(pos.lat, pos.lng), 15));
       }
+    });
+  }
+
+  void _escucharEstadoPedido() {
+    _subPedido = UbicacionService.streamEstadoPedido(widget.pedido.id)
+        .listen((estado) {
+      if (!mounted) return;
+      setState(() => _estadoActual = estado);
     });
   }
 
@@ -56,22 +82,28 @@ class _TrackingClientePageState extends State<TrackingClientePage> {
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _subUbic?.cancel();
+    _subPedido?.cancel();
     _mapCtrl?.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
+  int get _pasoActual {
+    final idx = _pasos.indexWhere((p) => p.$1 == _estadoActual);
+    return idx >= 0 ? idx : 0;
+  }
+
+  bool get _estaEnCamino => _estadoActual == 'En camino';
+  bool get _entregado    => _estadoActual == 'Entregado';
+
   Set<Marker> get _markers {
     final m = <Marker>{};
-
-    // Marcador pizzería
     m.add(const Marker(
       markerId: MarkerId('pizzeria'),
       position: _pizzeria,
       infoWindow: InfoWindow(title: '🍕 La Pizzería'),
     ));
-
-    // Marcador cliente
     if (_posCliente != null) {
       m.add(Marker(
         markerId: const MarkerId('cliente'),
@@ -80,8 +112,6 @@ class _TrackingClientePageState extends State<TrackingClientePage> {
         infoWindow: const InfoWindow(title: '📍 Tu ubicación'),
       ));
     }
-
-    // Marcador repartidor
     if (_posRepartidor != null) {
       m.add(Marker(
         markerId: const MarkerId('repartidor'),
@@ -93,7 +123,6 @@ class _TrackingClientePageState extends State<TrackingClientePage> {
         ),
       ));
     }
-
     return m;
   }
 
@@ -101,7 +130,8 @@ class _TrackingClientePageState extends State<TrackingClientePage> {
     if (_posCliente != null) return _posCliente!;
     final dir = widget.pedido.direccionEntrega;
     if (dir?['lat'] != null && dir?['lng'] != null) {
-      return LatLng((dir!['lat'] as num).toDouble(), (dir['lng'] as num).toDouble());
+      return LatLng((dir!['lat'] as num).toDouble(),
+          (dir['lng'] as num).toDouble());
     }
     return _pizzeria;
   }
@@ -118,114 +148,256 @@ class _TrackingClientePageState extends State<TrackingClientePage> {
           const Text('🛵 Seguimiento en vivo',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           Text('Pedido #${widget.pedido.id.substring(0, 6).toUpperCase()}',
-              style: const TextStyle(fontSize: 12, color: Colors.white54)),
+              style: const TextStyle(fontSize: 11, color: Colors.white38)),
         ]),
+        actions: [
+          if (_estaEnCamino && _posRepartidor != null)
+            IconButton(
+              icon: const Icon(Icons.center_focus_strong, color: Colors.white70),
+              tooltip: 'Centrar en repartidor',
+              onPressed: () => _mapCtrl?.animateCamera(
+                  CameraUpdate.newLatLngZoom(_posRepartidor!, 15)),
+            ),
+        ],
       ),
       body: Column(children: [
-        // Banner estado
-        _BannerEstado(pedido: widget.pedido, posRepartidor: _posRepartidor),
 
-        // Mapa
+        // ── Línea de tiempo ──────────────────────────────────
+        _LineaTiempo(pasos: _pasos, pasoActual: _pasoActual),
+
+        // ── Mapa ─────────────────────────────────────────────
         Expanded(
-          child: GoogleMap(
-            initialCameraPosition: CameraPosition(target: _centroInicial, zoom: 14),
-            markers: _markers,
-            myLocationEnabled: false,
-            zoomControlsEnabled: true,
-            mapToolbarEnabled: false,
-            onMapCreated: (ctrl) => setState(() => _mapCtrl = ctrl),
-          ),
+          child: Stack(children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(
+                  target: _centroInicial, zoom: 14),
+              markers: _markers,
+              myLocationEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              onMapCreated: (ctrl) => setState(() => _mapCtrl = ctrl),
+            ),
+
+            // Indicador de GPS en vivo
+            if (_estaEnCamino)
+              Positioned(
+                top: 12, right: 12,
+                child: AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (_, __) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A).withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.green
+                              .withOpacity(0.4 + _pulseCtrl.value * 0.4)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                        width: 8, height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.green
+                              .withOpacity(0.6 + _pulseCtrl.value * 0.4),
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(
+                              color: Colors.green.withOpacity(
+                                  0.3 + _pulseCtrl.value * 0.3),
+                              blurRadius: 6)],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('En vivo',
+                          style: TextStyle(color: Colors.white70,
+                              fontSize: 11, fontWeight: FontWeight.bold)),
+                    ]),
+                  ),
+                ),
+              ),
+
+            // Pantalla si ya fue entregado
+            if (_entregado)
+              Container(
+                color: Colors.black.withOpacity(0.65),
+                child: Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Text('🎉', style: TextStyle(fontSize: 60)),
+                  const SizedBox(height: 12),
+                  const Text('¡Pedido entregado!',
+                      style: TextStyle(color: Colors.white,
+                          fontSize: 22, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  Text('Gracias por tu preferencia',
+                      style: TextStyle(color: Colors.white.withOpacity(0.5),
+                          fontSize: 14)),
+                ])),
+              ),
+          ]),
         ),
 
-        // Panel inferior
-        _PanelInfo(pedido: widget.pedido, posRepartidor: _posRepartidor),
+        // ── Panel inferior ───────────────────────────────────
+        _PanelInferior(pedido: widget.pedido, posRepartidor: _posRepartidor),
       ]),
     );
   }
 }
 
-class _BannerEstado extends StatelessWidget {
-  final PedidoModel pedido;
-  final LatLng?     posRepartidor;
-  const _BannerEstado({required this.pedido, required this.posRepartidor});
+// ── Línea de tiempo ───────────────────────────────────────────
+class _LineaTiempo extends StatelessWidget {
+  final List<(String, String, String)> pasos;
+  final int pasoActual;
+  const _LineaTiempo({required this.pasos, required this.pasoActual});
 
   @override
   Widget build(BuildContext context) {
-    final activo = posRepartidor != null;
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: activo
-              ? [Colors.indigo.shade800, Colors.indigo.shade600]
-              : [Colors.grey.shade800, Colors.grey.shade700],
+      color: const Color(0xFF0F172A),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: List.generate(pasos.length * 2 - 1, (i) {
+            if (i.isOdd) {
+              // Línea conectora
+              final completado = i ~/ 2 < pasoActual;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                width: 28, height: 2,
+                color: completado
+                    ? const Color(0xFFFF6B00)
+                    : Colors.white12,
+              );
+            }
+            final idx        = i ~/ 2;
+            final completado = idx < pasoActual;
+            final activo     = idx == pasoActual;
+            final (_, emoji, label) = pasos[idx];
+
+            return Column(mainAxisSize: MainAxisSize.min, children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: completado
+                      ? const Color(0xFFFF6B00)
+                      : activo
+                          ? const Color(0xFFFF6B00).withOpacity(0.2)
+                          : const Color(0xFF1E293B),
+                  border: Border.all(
+                    color: (completado || activo)
+                        ? const Color(0xFFFF6B00)
+                        : Colors.white12,
+                    width: activo ? 2 : 1.5,
+                  ),
+                ),
+                child: Center(child: Text(
+                  completado ? '✓' : emoji,
+                  style: TextStyle(
+                    fontSize: completado ? 14 : 16,
+                    color: completado ? Colors.white : null,
+                  ),
+                )),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 56,
+                child: Text(label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: (completado || activo)
+                        ? Colors.white70 : Colors.white24,
+                    fontSize: 9,
+                    fontWeight: activo ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ]);
+          }),
         ),
       ),
-      child: Row(children: [
-        Text(activo ? '🛵' : '⏳', style: const TextStyle(fontSize: 22)),
-        const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            activo ? '¡Tu repartidor está en camino!' : 'Esperando ubicación del repartidor...',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          Text(
-            activo ? 'Ubicación actualizándose en tiempo real' : 'Se mostrará cuando inicie la entrega',
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-        ]),
-        const Spacer(),
-        if (activo)
-          Container(
-            width: 10, height: 10,
-            decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle),
-          ),
-      ]),
     );
   }
 }
 
-class _PanelInfo extends StatelessWidget {
+// ── Panel inferior ────────────────────────────────────────────
+class _PanelInferior extends StatelessWidget {
   final PedidoModel pedido;
-  final LatLng?     posRepartidor;
-  const _PanelInfo({required this.pedido, required this.posRepartidor});
+  final LatLng? posRepartidor;
+  const _PanelInferior({required this.pedido, required this.posRepartidor});
 
   @override
   Widget build(BuildContext context) {
     final dir = pedido.direccionEntrega?['direccion'] ?? 'Sin dirección';
     final ref = pedido.direccionEntrega?['referencia'] ?? '';
+
     return Container(
-      padding: const EdgeInsets.all(16),
-      color: const Color(0xFF1E293B),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [
-          const Icon(Icons.location_on, color: Colors.orange, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Entregando en:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-            Text(dir, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        // Dirección
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Center(child: Text('📍', style: TextStyle(fontSize: 18))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            const Text('Dirección de entrega',
+                style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const SizedBox(height: 2),
+            Text(dir, style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
             if (ref.isNotEmpty)
-              Text(ref, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              Text(ref, style: const TextStyle(
+                  color: Colors.white38, fontSize: 12)),
           ])),
         ]),
-        const SizedBox(height: 10),
+
+        const SizedBox(height: 12),
+
+        // Código de verificación
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
+            gradient: LinearGradient(colors: [
+              Colors.orange.withOpacity(0.12),
+              Colors.orange.withOpacity(0.06),
+            ]),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.orange.withOpacity(0.3)),
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.lock, size: 16, color: Colors.orange),
-            const SizedBox(width: 8),
-            Text(
-              'Código de entrega: ${pedido.codigoVerificacion}',
-              style: const TextStyle(
-                  color: Colors.orange, fontWeight: FontWeight.bold,
-                  fontSize: 16, letterSpacing: 4),
-            ),
+          child: Row(children: [
+            const Text('🔐', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Código de entrega',
+                  style: TextStyle(color: Colors.white38, fontSize: 10)),
+              Text(
+                pedido.codigoVerificacion ?? '----',
+                style: const TextStyle(
+                  color: Colors.orange,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 6,
+                ),
+              ),
+            ]),
+            const Spacer(),
+            const Text('Dáselo al\nrepartidor',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white24,
+                    fontSize: 10, height: 1.4)),
           ]),
         ),
       ]),

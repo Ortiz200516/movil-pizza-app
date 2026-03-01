@@ -12,8 +12,15 @@ import 'splash_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await NotificacionService().inicializar();
-  await ProductoService().inicializarProductosEjemplo();
+
+  // Inicializar servicios sin bloquear si fallan
+  try {
+    await NotificacionService().inicializar();
+  } catch (_) {}
+  try {
+    await ProductoService().inicializarProductosEjemplo();
+  } catch (_) {}
+
   runApp(const MyApp());
 }
 
@@ -31,9 +38,9 @@ class MyApp extends StatelessWidget {
         builder: (_, theme, __) => MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'La Pizzería',
-          themeMode:  theme.themeMode,
-          theme:      ThemeProvider.temaClaro,
-          darkTheme:  ThemeProvider.temaOscuro,
+          themeMode: theme.themeMode,
+          theme: ThemeProvider.temaClaro,
+          darkTheme: ThemeProvider.temaOscuro,
           home: const NotificacionBanner(child: SplashPage()),
         ),
       ),

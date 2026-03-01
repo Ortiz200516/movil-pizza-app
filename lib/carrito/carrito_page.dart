@@ -18,13 +18,18 @@ class _CarritoPageState extends State<CarritoPage> {
   String _metodoPago    = 'efectivo';
   final _direccionCtrl  = TextEditingController();
   final _referenciaCtrl = TextEditingController();
+  final _cuponCtrl      = TextEditingController();
   int?  _mesaSeleccionada;
-  bool  _enviando = false;
+  bool  _enviando       = false;
+  double _descuento     = 0.0;
+  String? _cuponAplicado;
+  String? _cuponError;
 
   @override
   void dispose() {
     _direccionCtrl.dispose();
     _referenciaCtrl.dispose();
+    _cuponCtrl.dispose();
     super.dispose();
   }
 
@@ -141,14 +146,34 @@ class _CarritoPageState extends State<CarritoPage> {
 
                   const SizedBox(height: 12),
 
+                  // ── Cupón de descuento ──
+                  _seccion(
+                    titulo: '🎟️ ¿Tienes un cupón?',
+                    child: _CuponField(
+                      ctrl: _cuponCtrl,
+                      descuento: _descuento,
+                      cuponAplicado: _cuponAplicado,
+                      cuponError: _cuponError,
+                      onAplicar: () => _aplicarCupon(),
+                      onQuitar: () => setState(() {
+                        _descuento = 0; _cuponAplicado = null;
+                        _cuponError = null; _cuponCtrl.clear();
+                      }),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
                   // ── Resumen de precios ──
                   _seccion(
                     titulo: 'Resumen',
                     child: Column(children: [
                       _PrecioRow('Subtotal', '\$${carrito.subtotal.toStringAsFixed(2)}'),
                       _PrecioRow('IVA (15%)', '\$${carrito.impuesto.toStringAsFixed(2)}'),
+                      if (_descuento > 0)
+                        _PrecioRow('🎟️ Descuento', '-\$${_descuento.toStringAsFixed(2)}', color: Colors.green),
                       const Divider(color: Colors.white24),
-                      _PrecioRow('TOTAL', '\$${carrito.total.toStringAsFixed(2)}',
+                      _PrecioRow('TOTAL', '\$${(carrito.total - _descuento).clamp(0, double.infinity).toStringAsFixed(2)}',
                           bold: true, color: Colors.orange),
                     ]),
                   ),
@@ -159,21 +184,57 @@ class _CarritoPageState extends State<CarritoPage> {
               // ── Botón confirmar ──
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                color: const Color(0xFF0F172A),
-                child: SizedBox(
-                  width: double.infinity, height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _enviando ? null : () => _confirmarPedido(context, carrito),
-                    icon: _enviando
-                        ? const SizedBox(width: 20, height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.check_circle),
-                    label: Text(_enviando ? 'Enviando...' : 'CONFIRMAR PEDIDO',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  boxShadow: [BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 12, offset: const Offset(0, -4))],
+                ),
+                child: GestureDetector(
+                  onTap: _enviando ? null : () => _confirmarPedido(context, carrito),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: _enviando
+                          ? Colors.orange.withOpacity(0.5)
+                          : const Color(0xFFFF6B00),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: _enviando ? [] : [BoxShadow(
+                        color: const Color(0xFFFF6B00).withOpacity(0.35),
+                        blurRadius: 14, offset: const Offset(0, 4))],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(children: [
+                        if (_enviando)
+                          const SizedBox(width: 22, height: 22,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2.5))
+                        else
+                          const Icon(Icons.check_circle_outline,
+                              size: 24, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(
+                          _enviando ? 'Procesando...' : 'CONFIRMAR PEDIDO',
+                          style: const TextStyle(fontSize: 15,
+                              fontWeight: FontWeight.w800, color: Colors.white,
+                              letterSpacing: 0.5),
+                        )),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text('Total', style: TextStyle(
+                                color: Colors.white60, fontSize: 10)),
+                            Text(
+                              '\$${(carrito.total - _descuento).clamp(0, double.infinity).toStringAsFixed(2)}',
+                              style: const TextStyle(color: Colors.white,
+                                  fontSize: 18, fontWeight: FontWeight.w900),
+                            ),
+                          ],
+                        ),
+                      ]),
                     ),
                   ),
                 ),
@@ -217,18 +278,69 @@ class _CarritoPageState extends State<CarritoPage> {
     ]),
   );
 
+  Future<void> _aplicarCupon() async {
+    final codigo = _cuponCtrl.text.trim().toUpperCase();
+    if (codigo.isEmpty) return;
+    setState(() { _cuponError = null; });
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('cupones')
+          .where('codigo', isEqualTo: codigo)
+          .where('activo', isEqualTo: true)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) {
+        setState(() { _cuponError = 'Cupón inválido o expirado'; });
+        return;
+      }
+      final d = snap.docs.first.data();
+      final exp = d['expira'] as Timestamp?;
+      if (exp != null && exp.toDate().isBefore(DateTime.now())) {
+        setState(() { _cuponError = 'Este cupón ya expiró'; });
+        return;
+      }
+      final carrito = Provider.of<CarritoProvider>(context, listen: false);
+      final tipo     = d['tipo'] as String? ?? 'porcentaje';
+      final valor    = (d['descuento'] as num?)?.toDouble() ?? 0.0;
+      final desc     = tipo == 'porcentaje'
+          ? carrito.total * valor / 100
+          : valor;
+      setState(() {
+        _descuento     = desc;
+        _cuponAplicado = codigo;
+        _cuponError    = null;
+      });
+    } catch (e) {
+      setState(() { _cuponError = 'Error al verificar cupón'; });
+    }
+  }
+
   Future<void> _confirmarPedido(BuildContext context, CarritoProvider carrito) async {
     if (_tipoPedido == 'mesa' && _mesaSeleccionada == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Selecciona una mesa'),
-        backgroundColor: Colors.red,
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Row(children: [
+          Text('🍽️', style: TextStyle(fontSize: 16)),
+          SizedBox(width: 8),
+          Text('Selecciona una mesa primero'),
+        ]),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(12),
       ));
       return;
     }
     if (_tipoPedido == 'domicilio' && _direccionCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Ingresa tu dirección de entrega'),
-        backgroundColor: Colors.red,
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Row(children: [
+          Text('📍', style: TextStyle(fontSize: 16)),
+          SizedBox(width: 8),
+          Text('Ingresa tu dirección de entrega'),
+        ]),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(12),
       ));
       return;
     }
@@ -660,4 +772,91 @@ class _MetodoPagoBtn extends StatelessWidget {
       ]),
     ),
   );
+}
+// ── Campo de cupón ────────────────────────────────────────────
+class _CuponField extends StatelessWidget {
+  final TextEditingController ctrl;
+  final double descuento;
+  final String? cuponAplicado, cuponError;
+  final VoidCallback onAplicar, onQuitar;
+  const _CuponField({required this.ctrl, required this.descuento,
+      this.cuponAplicado, this.cuponError,
+      required this.onAplicar, required this.onQuitar});
+
+  @override
+  Widget build(BuildContext context) {
+    if (cuponAplicado != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.green.withOpacity(0.4)),
+        ),
+        child: Row(children: [
+          const Text('🎟️', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(cuponAplicado!, style: const TextStyle(
+                color: Colors.green, fontWeight: FontWeight.bold,
+                fontSize: 15, letterSpacing: 1.5)),
+            Text('-\$${descuento.toStringAsFixed(2)} de descuento',
+                style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          ])),
+          TextButton(
+            onPressed: onQuitar,
+            child: const Text('Quitar', style: TextStyle(color: Colors.red, fontSize: 12)),
+          ),
+        ]),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(
+          child: TextField(
+            controller: ctrl,
+            style: const TextStyle(color: Colors.white, letterSpacing: 1.5),
+            textCapitalization: TextCapitalization.characters,
+            decoration: InputDecoration(
+              hintText: 'Ej: PIZZA10',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.25)),
+              prefixIcon: const Icon(Icons.local_offer_outlined,
+                  color: Colors.orange, size: 18),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.08))),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.orange)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        ElevatedButton(
+          onPressed: onAplicar,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('Aplicar', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ]),
+      if (cuponError != null) ...[
+        const SizedBox(height: 6),
+        Row(children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 14),
+          const SizedBox(width: 4),
+          Text(cuponError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+        ]),
+      ],
+    ]);
+  }
 }
