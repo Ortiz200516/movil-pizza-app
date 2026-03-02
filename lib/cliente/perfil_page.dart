@@ -581,7 +581,7 @@ class _SeccionApariencia extends StatelessWidget {
               Switch(
                 value: oscuro,
                 onChanged: (_) => theme.toggleTema(),
-                activeColor: const Color(0xFFFF6B00),
+                activeThumbColor: const Color(0xFFFF6B00),
                 activeTrackColor: const Color(0xFFFF6B00).withOpacity(0.3),
                 inactiveThumbColor: Colors.grey,
                 inactiveTrackColor: Colors.grey.withOpacity(0.2),

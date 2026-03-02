@@ -28,28 +28,40 @@ class ProductoModel {
     if (c.contains('bebida') ||
         c.contains('refresco') ||
         c.contains('jugo') ||
-        c.contains('gaseosa')) return '🥤';
-    if (c.contains('postre') || c.contains('helado') || c.contains('dulce'))
+        c.contains('gaseosa')) {
+      return '🥤';
+    }
+    if (c.contains('postre') || c.contains('helado') || c.contains('dulce')) {
       return '🍰';
+    }
     if (c.contains('entrada') ||
         c.contains('snack') ||
         c.contains('papa') ||
-        c.contains('alita')) return '🍟';
+        c.contains('alita')) {
+      return '🍟';
+    }
     if (c.contains('ensalada')) return '🥗';
     if (c.contains('sandwich') ||
         c.contains('sándwich') ||
         c.contains('tostada') ||
-        c.contains('wrap')) return '🥪';
-    if (c.contains('pasta') || c.contains('espagueti') || c.contains('lasaña'))
+        c.contains('wrap')) {
+      return '🥪';
+    }
+    if (c.contains('pasta') || c.contains('espagueti') || c.contains('lasaña')) {
       return '🍝';
+    }
     if (c.contains('pollo') || c.contains('chicken')) return '🍗';
-    if (c.contains('carne') || c.contains('parrilla') || c.contains('steak'))
+    if (c.contains('carne') || c.contains('parrilla') || c.contains('steak')) {
       return '🥩';
+    }
     if (c.contains('mariscos') ||
         c.contains('pescado') ||
-        c.contains('camarones')) return '🦐';
-    if (c.contains('cafe') || c.contains('café') || c.contains('coffee'))
+        c.contains('camarones')) {
+      return '🦐';
+    }
+    if (c.contains('cafe') || c.contains('café') || c.contains('coffee')) {
       return '☕';
+    }
     if (c.contains('combo') || c.contains('promo')) return '🍱';
     if (c.contains('desayuno')) return '🍳';
     if (c.contains('sopa') || c.contains('caldo')) return '🍜';

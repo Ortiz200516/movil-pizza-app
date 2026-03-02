@@ -70,9 +70,11 @@ class _ReportesPageState extends State<ReportesPage> {
                 } else {
                   await ExportarService.exportarResumenCSV(desde: _desde, hasta: ahora);
                 }
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('📥 Descarga iniciada'),
                       backgroundColor: Colors.green, behavior: SnackBarBehavior.floating));
+                }
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'pedidos', child: Row(children: [

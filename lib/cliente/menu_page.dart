@@ -27,16 +27,22 @@ String _iconoPorNombre(String nombre) {
   if (n.contains('bebida') ||
       n.contains('refresco') ||
       n.contains('jugo') ||
-      n.contains('gaseosa')) return '🥤';
+      n.contains('gaseosa')) {
+    return '🥤';
+  }
   if (n.contains('entrada') ||
       n.contains('snack') ||
       n.contains('papa') ||
-      n.contains('alita')) return '🍟';
+      n.contains('alita')) {
+    return '🍟';
+  }
   if (n.contains('ensalada')) return '🥗';
-  if (n.contains('postre') || n.contains('helado') || n.contains('dulce'))
+  if (n.contains('postre') || n.contains('helado') || n.contains('dulce')) {
     return '🍰';
-  if (n.contains('sandwich') || n.contains('tostada') || n.contains('wrap'))
+  }
+  if (n.contains('sandwich') || n.contains('tostada') || n.contains('wrap')) {
     return '🥪';
+  }
   if (n.contains('pasta') || n.contains('espagueti')) return '🍝';
   if (n.contains('pollo') || n.contains('chicken')) return '🍗';
   if (n.contains('carne') || n.contains('parrilla')) return '🥩';
@@ -51,25 +57,34 @@ String _iconoPorNombre(String nombre) {
 Color _colorDeCat(String cat) {
   final n = cat.toLowerCase();
   if (n.contains('pizza')) return const Color(0xFFFF6B35);
-  if (n.contains('hamburgues') || n.contains('burger'))
+  if (n.contains('hamburgues') || n.contains('burger')) {
     return const Color(0xFFFFB800);
-  if (n.contains('cerveza') || n.contains('beer'))
+  }
+  if (n.contains('cerveza') || n.contains('beer')) {
     return const Color(0xFF38BDF8);
-  if (n.contains('bebida') || n.contains('refresco'))
+  }
+  if (n.contains('bebida') || n.contains('refresco')) {
     return const Color(0xFF818CF8);
-  if (n.contains('entrada') || n.contains('snack'))
+  }
+  if (n.contains('entrada') || n.contains('snack')) {
     return const Color(0xFFFB7185);
+  }
   if (n.contains('ensalada')) return const Color(0xFF4ADE80);
-  if (n.contains('postre') || n.contains('helado'))
+  if (n.contains('postre') || n.contains('helado')) {
     return const Color(0xFFF472B6);
-  if (n.contains('sandwich') || n.contains('tostada'))
+  }
+  if (n.contains('sandwich') || n.contains('tostada')) {
     return const Color(0xFFFFB800);
-  if (n.contains('pollo') || n.contains('chicken'))
+  }
+  if (n.contains('pollo') || n.contains('chicken')) {
     return const Color(0xFFFB7185);
-  if (n.contains('carne') || n.contains('parrilla'))
+  }
+  if (n.contains('carne') || n.contains('parrilla')) {
     return const Color(0xFFFF6B35);
-  if (n.contains('combo') || n.contains('promo'))
+  }
+  if (n.contains('combo') || n.contains('promo')) {
     return const Color(0xFF34D399);
+  }
   if (n.contains('desayuno')) return const Color(0xFFFBBF24);
   return const Color(0xFFFF6B35);
 }

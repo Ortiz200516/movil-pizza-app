@@ -103,8 +103,10 @@ class _CocinaAppBarState extends State<_CocinaAppBar> {
           icon: const Icon(Icons.logout, color: Colors.white38, size: 20),
           onPressed: () async {
             await widget.authService.logout();
-            if (context.mounted) Navigator.pushReplacement(
+            if (context.mounted) {
+              Navigator.pushReplacement(
                 context, MaterialPageRoute(builder: (_) => const LoginPage()));
+            }
           },
         ),
         const SizedBox(width: 4),

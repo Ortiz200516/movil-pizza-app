@@ -148,7 +148,7 @@ class _CuponesPageState extends State<CuponesPage> {
               onChanged: (v) => setM(() => activo = v),
               title: const Text('Cupón activo',
                   style: TextStyle(color: Colors.white70, fontSize: 14)),
-              activeColor: const Color(0xFFFF6B00),
+              activeThumbColor: const Color(0xFFFF6B00),
               contentPadding: EdgeInsets.zero,
             ),
             const SizedBox(height: 16),
@@ -259,12 +259,15 @@ class _CuponesPageState extends State<CuponesPage> {
             .orderBy('activo', descending: true)
             .snapshots(),
         builder: (context, snap) {
-          if (!snap.hasData) return const Center(
+          if (!snap.hasData) {
+            return const Center(
               child: CircularProgressIndicator(
                   color: Color(0xFFFF6B00)));
+          }
 
           final docs = snap.data!.docs;
-          if (docs.isEmpty) return Center(child: Column(
+          if (docs.isEmpty) {
+            return Center(child: Column(
             mainAxisAlignment: MainAxisAlignment.center, children: [
             const Text('🎟️', style: TextStyle(fontSize: 60)),
             const SizedBox(height: 14),
@@ -278,6 +281,7 @@ class _CuponesPageState extends State<CuponesPage> {
                   style: TextStyle(color: Color(0xFFFF6B00))),
             ),
           ]));
+          }
 
           final now = DateTime.now();
           return ListView.builder(

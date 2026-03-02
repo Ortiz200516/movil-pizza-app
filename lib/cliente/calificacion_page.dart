@@ -12,7 +12,7 @@ class CalificacionPage extends StatefulWidget {
 class _CalificacionPageState extends State<CalificacionPage>
     with SingleTickerProviderStateMixin {
   int    _estrellas  = 0;
-  String _comentario = '';
+  final String _comentario = '';
   bool   _enviando   = false;
   bool   _enviado    = false;
 
@@ -73,10 +73,12 @@ class _CalificacionPageState extends State<CalificacionPage>
       _animCtrl.forward();
     } catch (e) {
       setState(() => _enviando = false);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Error: $e'), backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
       ));
+      }
     }
   }
 

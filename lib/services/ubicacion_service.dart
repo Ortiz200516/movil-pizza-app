@@ -100,7 +100,9 @@ class _Completer<T> {
   void complete(T value) {
     _value = value;
     _done = true;
-    for (final l in _listeners) l(value);
+    for (final l in _listeners) {
+      l(value);
+    }
   }
 
   Future<T> get future async {

@@ -504,7 +504,7 @@ class _DropdownPais extends StatelessWidget {
         ),
         child: DropdownButtonHideUnderline(
           child: DropdownButtonFormField<String>(
-            value: valor,
+            initialValue: valor,
             dropdownColor: const Color(0xFF1E293B),
             isExpanded: true,
             style: const TextStyle(color: Colors.white, fontSize: 14),

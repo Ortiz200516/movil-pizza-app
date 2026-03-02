@@ -190,7 +190,7 @@ class _MesasAdminPageState extends State<MesasAdminPage> {
               title: const Text('Mesa activa'),
               value: activaLocal,
               onChanged: (v) => setSt(() => activaLocal = v),
-              activeColor: Colors.purple,
+              activeThumbColor: Colors.purple,
             ),
           ]),
           actions: [

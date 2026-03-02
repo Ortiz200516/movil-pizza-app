@@ -38,8 +38,10 @@ class _HomeRepartidorState extends State<HomeRepartidor> {
               icon: const Icon(Icons.logout),
               onPressed: () async {
                 await AuthService().logout();
-                if (context.mounted) Navigator.pushReplacement(
+                if (context.mounted) {
+                  Navigator.pushReplacement(
                     context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                }
               },
             ),
           ],

@@ -45,8 +45,10 @@ class _HomeMeseroState extends State<HomeMesero> {
               icon: const Icon(Icons.logout_outlined),
               onPressed: () async {
                 await AuthService().logout();
-                if (context.mounted) Navigator.pushReplacement(
+                if (context.mounted) {
+                  Navigator.pushReplacement(
                     context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                }
               },
             ),
           ],
@@ -192,14 +194,17 @@ class _TabPedidos extends StatelessWidget {
           .orderBy('fecha', descending: false)
           .snapshots(),
       builder: (context, snap) {
-        if (!snap.hasData) return const Center(
+        if (!snap.hasData) {
+          return const Center(
             child: CircularProgressIndicator(color: Color(0xFF2DD4BF)));
+        }
 
         final pedidos = snap.data!.docs
             .map((d) => PedidoModel.fromFirestore(d.id, d.data() as Map<String, dynamic>))
             .toList();
 
-        if (pedidos.isEmpty) return Center(child: Column(
+        if (pedidos.isEmpty) {
+          return Center(child: Column(
           mainAxisAlignment: MainAxisAlignment.center, children: [
           const Text('📋', style: TextStyle(fontSize: 60)),
           const SizedBox(height: 14),
@@ -210,6 +215,7 @@ class _TabPedidos extends StatelessWidget {
           Text('Todos los pedidos están al día 👍',
               style: TextStyle(color: Colors.white24, fontSize: 13)),
         ]));
+        }
 
         // Agrupar por estado
         final pendientes  = pedidos.where((p) => p.estado == 'Pendiente').toList();
@@ -361,12 +367,14 @@ class _PedidoCard extends StatelessWidget {
                 onPressed: () async {
                   final ok = await PedidoService()
                       .actualizarEstado(pedido.id, 'Entregado');
-                  if (context.mounted) ScaffoldMessenger.of(context)
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
                       .showSnackBar(SnackBar(
                     content: Text(ok ? '✅ Entregado' : '❌ Error'),
                     backgroundColor: ok ? Colors.green : Colors.red,
                     behavior: SnackBarBehavior.floating,
                   ));
+                  }
                 },
                 icon: const Icon(Icons.check_circle, size: 18),
                 label: const Text('MARCAR ENTREGADO',
@@ -412,8 +420,11 @@ class _TabNuevaOrdenState extends State<_TabNuevaOrden> {
   });
 
   void _quitar(String id) => setState(() {
-    if ((_carrito[id] ?? 0) <= 1) _carrito.remove(id);
-    else _carrito[id] = _carrito[id]! - 1;
+    if ((_carrito[id] ?? 0) <= 1) {
+      _carrito.remove(id);
+    } else {
+      _carrito[id] = _carrito[id]! - 1;
+    }
   });
 
   Future<void> _confirmar() async {
@@ -858,10 +869,12 @@ class _DetalleMesaSheet extends StatelessWidget {
               onPressed: () async {
                 Navigator.pop(context);
                 await PedidoService().actualizarEstado(pedido['id'], 'Entregado');
-                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ Mesa marcada como entregada'),
                       backgroundColor: Colors.green,
                       behavior: SnackBarBehavior.floating));
+                }
               },
               icon: const Icon(Icons.check_circle),
               label: const Text('MARCAR ENTREGADO',

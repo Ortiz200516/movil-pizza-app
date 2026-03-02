@@ -75,16 +75,18 @@ class _LoginPageState extends State<LoginPage>
         default:
           destino = const HomeCliente();
       }
-      if (mounted)
+      if (mounted) {
         Navigator.pushReplacement(
             context, MaterialPageRoute(builder: (_) => destino));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString().replaceAll('Exception: ', '')),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
         ));
+      }
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -166,8 +168,9 @@ class _LoginPageState extends State<LoginPage>
                         icon: Icons.email_outlined,
                         tipo: TextInputType.emailAddress,
                         validar: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Ingresa tu correo';
+                          }
                           if (!v.contains('@')) return 'Correo inválido';
                           return null;
                         },
@@ -190,8 +193,9 @@ class _LoginPageState extends State<LoginPage>
                           onPressed: () => setState(() => _verPass = !_verPass),
                         ),
                         validar: (v) {
-                          if (v == null || v.isEmpty)
+                          if (v == null || v.isEmpty) {
                             return 'Ingresa tu contraseña';
+                          }
                           if (v.length < 6) return 'Mínimo 6 caracteres';
                           return null;
                         },

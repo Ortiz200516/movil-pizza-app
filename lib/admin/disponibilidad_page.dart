@@ -250,7 +250,7 @@ class _ProductoDisponibilidadCardState extends State<_ProductoDisponibilidadCard
                     await widget.onToggle(v);
                     if (mounted) setState(() => _cargando = false);
                   },
-                  activeColor: Colors.green,
+                  activeThumbColor: Colors.green,
                 ),
         ]),
       ),

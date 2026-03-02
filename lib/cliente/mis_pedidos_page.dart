@@ -23,8 +23,10 @@ class _MisPedidosPageState extends State<MisPedidosPage>
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Center(
+    if (user == null) {
+      return const Center(
         child: Text('Debes iniciar sesión', style: TextStyle(color: Colors.white)));
+    }
 
     return Column(children: [
       // Tabs
@@ -378,47 +380,47 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                     style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
               ]),
 
-              if (p.metodoPago != null) ...[
-                const SizedBox(height: 6),
-                Row(children: [
-                  const Icon(Icons.payment, color: Colors.white38, size: 14),
-                  const SizedBox(width: 6),
-                  Text(p.metodoPago, style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                ]),
-              ],
+              ...[
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.payment, color: Colors.white38, size: 14),
+                const SizedBox(width: 6),
+                Text(p.metodoPago, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              ]),
+            ],
 
               // Código de verificación
-              if (p.codigoVerificacion != null) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF6B35).withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.2)),
-                  ),
-                  child: Row(children: [
-                    const Text('🔐', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Código de verificación',
-                          style: TextStyle(color: Colors.white38, fontSize: 10)),
-                      Text((p.codigoVerificacion ?? '----'),
-                          style: const TextStyle(color: Color(0xFFFF6B35),
-                              fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 4)),
-                    ])),
-                    IconButton(
-                      icon: const Icon(Icons.copy, color: Colors.white38, size: 18),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: (p.codigoVerificacion ?? '----')));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Código copiado'),
-                              duration: Duration(seconds: 1)));
-                      },
-                    ),
-                  ]),
+              ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B35).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.2)),
                 ),
-              ],
+                child: Row(children: [
+                  const Text('🔐', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Código de verificación',
+                        style: TextStyle(color: Colors.white38, fontSize: 10)),
+                    Text((p.codigoVerificacion ?? '----'),
+                        style: const TextStyle(color: Color(0xFFFF6B35),
+                            fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 4)),
+                  ])),
+                  IconButton(
+                    icon: const Icon(Icons.copy, color: Colors.white38, size: 18),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: (p.codigoVerificacion ?? '----')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Código copiado'),
+                            duration: Duration(seconds: 1)));
+                    },
+                  ),
+                ]),
+              ),
+            ],
 
               // Botón tracking si está en camino
               if (p.estado == 'En camino' &&

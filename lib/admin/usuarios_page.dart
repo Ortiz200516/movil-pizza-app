@@ -358,7 +358,7 @@ class _UsuariosPageState extends State<UsuariosPage> {
                             );
                           }
                         },
-                        activeColor: Colors.green,
+                        activeThumbColor: Colors.green,
                       ),
                     ],
                   ),

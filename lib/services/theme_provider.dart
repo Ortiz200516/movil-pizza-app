@@ -109,7 +109,6 @@ class ThemeProvider extends ChangeNotifier {
           primary: naranja,
           secondary: naranjaL,
           surface: Colors.white,
-          background: fondoClr,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,

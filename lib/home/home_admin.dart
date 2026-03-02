@@ -661,7 +661,7 @@ class _HomeAdminState extends State<HomeAdmin> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
-                value: catSel,
+                initialValue: catSel,
                 items: categorias.map((c) => DropdownMenuItem(
                   value: c.id,
                   child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),
@@ -722,7 +722,7 @@ class _HomeAdminState extends State<HomeAdmin> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
-                value: categorias.any((c) => c.nombre == catSel) ? catSel : null,
+                initialValue: categorias.any((c) => c.nombre == catSel) ? catSel : null,
                 items: categorias.map((c) => DropdownMenuItem(
                   value: c.nombre,
                   child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),

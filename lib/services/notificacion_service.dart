@@ -117,9 +117,11 @@ class _NotificacionBannerState extends State<NotificacionBanner>
       setState(() { _titulo = titulo; _cuerpo = cuerpo; _tipo = tipo ?? 'info'; });
       _ctrl.forward();
       Future.delayed(const Duration(seconds: 4), () {
-        if (mounted) _ctrl.reverse().then((_) {
+        if (mounted) {
+          _ctrl.reverse().then((_) {
           if (mounted) setState(() { _titulo = null; _cuerpo = null; });
         });
+        }
       });
     };
   }
@@ -229,7 +231,7 @@ class NotifBadgeBtn extends StatefulWidget {
 class _NotifBadgeBtnState extends State<NotifBadgeBtn>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
-  int _prevCount = 0;
+  final int _prevCount = 0;
 
   @override
   void initState() {
@@ -386,8 +388,10 @@ class _NotifSheet extends StatelessWidget {
                   .limit(40)
                   .snapshots(),
               builder: (context, snap) {
-                if (!snap.hasData) return const Center(
+                if (!snap.hasData) {
+                  return const Center(
                     child: CircularProgressIndicator(color: Color(0xFFFF6B00)));
+                }
 
                 final docs = snap.data!.docs.where((d) {
                   final data = d.data() as Map<String, dynamic>;
