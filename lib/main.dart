@@ -11,9 +11,15 @@ import 'splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Inicializar servicios sin bloquear si fallan
+  // Inicializar Firebase ignorando si ya existe
+  try {
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
+  } catch (e) {
+    if (!e.toString().contains('duplicate-app')) rethrow;
+  }
+
   try {
     await NotificacionService().inicializar();
   } catch (_) {}

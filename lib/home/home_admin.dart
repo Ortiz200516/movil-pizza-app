@@ -20,25 +20,25 @@ const _estadosActivos = ['Pendiente', 'Preparando', 'Listo', 'En camino'];
 
 Color _colorEstado(String estado) {
   switch (estado) {
-    case 'Pendiente':    return Colors.orange;
-    case 'Preparando':   return Colors.blue;
-    case 'Listo':        return Colors.purple;
-    case 'En camino':    return Colors.indigo;
-    case 'Entregado':    return Colors.green;
-    case 'Cancelado':    return Colors.red;
-    default:             return Colors.grey;
+    case 'Pendiente':  return Colors.orange;
+    case 'Preparando': return Colors.blue;
+    case 'Listo':      return Colors.purple;
+    case 'En camino':  return Colors.indigo;
+    case 'Entregado':  return Colors.green;
+    case 'Cancelado':  return Colors.red;
+    default:           return Colors.grey;
   }
 }
 
 IconData _iconoEstado(String estado) {
   switch (estado) {
-    case 'Pendiente':    return Icons.access_time;
-    case 'Preparando':   return Icons.restaurant;
-    case 'Listo':        return Icons.done_all;
-    case 'En camino':    return Icons.delivery_dining;
-    case 'Entregado':    return Icons.check_circle;
-    case 'Cancelado':    return Icons.cancel;
-    default:             return Icons.help_outline;
+    case 'Pendiente':  return Icons.access_time;
+    case 'Preparando': return Icons.restaurant;
+    case 'Listo':      return Icons.done_all;
+    case 'En camino':  return Icons.delivery_dining;
+    case 'Entregado':  return Icons.check_circle;
+    case 'Cancelado':  return Icons.cancel;
+    default:           return Icons.help_outline;
   }
 }
 
@@ -65,6 +65,7 @@ class _HomeAdminState extends State<HomeAdmin> {
       length: 8,
       child: Scaffold(
         key: _scaffoldKey,
+        backgroundColor: const Color(0xFF111827),
         appBar: AppBar(
           title: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -92,7 +93,7 @@ class _HomeAdminState extends State<HomeAdmin> {
               ]);
             },
           ),
-          backgroundColor: Colors.purple,
+          backgroundColor: const Color(0xFF581C87),
           foregroundColor: Colors.white,
           elevation: 0,
           leading: IconButton(
@@ -105,7 +106,7 @@ class _HomeAdminState extends State<HomeAdmin> {
             indicatorColor: Colors.white,
             indicatorWeight: 3,
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
+            unselectedLabelColor: Colors.white60,
             labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             tabs: [
               Tab(icon: Icon(Icons.category, size: 20), text: 'Categorías'),
@@ -122,8 +123,8 @@ class _HomeAdminState extends State<HomeAdmin> {
             IconButton(
               icon: const Icon(Icons.people),
               tooltip: 'Gestionar Usuarios',
-              onPressed: () => Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const UsuariosPage())),
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const UsuariosPage())),
             ),
             IconButton(
               icon: const Icon(Icons.logout),
@@ -131,8 +132,8 @@ class _HomeAdminState extends State<HomeAdmin> {
               onPressed: () async {
                 await _authService.logout();
                 if (context.mounted) {
-                  Navigator.pushReplacement(
-                    context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()));
                 }
               },
             ),
@@ -183,58 +184,62 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
+  // ── Drawer oscuro ─────────────────────────────────────────────
   Widget _buildDashboardDrawer() {
     return Drawer(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple, Colors.purpleAccent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.dashboard, color: Colors.white, size: 40),
-                  const SizedBox(height: 8),
-                  const Text('Dashboard en Tiempo Real',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(_authService.currentUserEmail ?? '',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-              ),
+      backgroundColor: const Color(0xFF111827),
+      child: Column(children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF581C87), Color(0xFF7C3AED)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text('👨‍🍳 Cocina', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildCocinaStatus(),
-                const SizedBox(height: 20),
-                const Divider(),
-                const SizedBox(height: 12),
-                const Text('🛵 Repartidores', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildRepartidoresStatus(),
-                const SizedBox(height: 20),
-                const Divider(),
-                const SizedBox(height: 12),
-                const Text('📦 Pedidos Recientes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildPedidosRecientes(),
-              ],
-            ),
+          child: SafeArea(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.dashboard, color: Colors.white, size: 40),
+              const SizedBox(height: 8),
+              const Text('Panel en Tiempo Real',
+                  style: TextStyle(color: Colors.white,
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(_authService.currentUserEmail ?? '',
+                  style: const TextStyle(color: Colors.white60, fontSize: 12)),
+            ]),
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text('👨‍🍳 Cocina',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              const SizedBox(height: 8),
+              _buildCocinaStatus(),
+              const SizedBox(height: 20),
+              Divider(color: Colors.white.withOpacity(0.1)),
+              const SizedBox(height: 12),
+              const Text('🛵 Repartidores',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              const SizedBox(height: 8),
+              _buildRepartidoresStatus(),
+              const SizedBox(height: 20),
+              Divider(color: Colors.white.withOpacity(0.1)),
+              const SizedBox(height: 12),
+              const Text('📦 Pedidos Recientes',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+              const SizedBox(height: 8),
+              _buildPedidosRecientes(),
+            ],
+          ),
+        ),
+      ]),
     );
   }
 
@@ -247,26 +252,33 @@ class _HomeAdminState extends State<HomeAdmin> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const _LoadingCard();
         final pedidos = snapshot.data!.docs;
-        final enPreparacion = pedidos.where((p) => p['estado'] == 'Preparando').length;
-        final pendientes = pedidos.where((p) => p['estado'] == 'Pendiente').length;
-        return Card(
-          color: Colors.orange.shade50,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.restaurant, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text('$enPreparacion en preparación', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ]),
-              const SizedBox(height: 6),
-              Row(children: [
-                const Icon(Icons.pending, color: Colors.grey, size: 18),
-                const SizedBox(width: 8),
-                Text('$pendientes pendientes'),
-              ]),
-            ]),
+        final enPreparacion =
+            pedidos.where((p) => p['estado'] == 'Preparando').length;
+        final pendientes =
+            pedidos.where((p) => p['estado'] == 'Pendiente').length;
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
           ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.restaurant, color: Colors.orange, size: 18),
+              const SizedBox(width: 8),
+              Text('$enPreparacion en preparación',
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.pending, color: Colors.white38, size: 16),
+              const SizedBox(width: 8),
+              Text('$pendientes pendientes',
+                  style: const TextStyle(color: Colors.white60)),
+            ]),
+          ]),
         );
       },
     );
@@ -282,43 +294,78 @@ class _HomeAdminState extends State<HomeAdmin> {
         if (!snapshot.hasData) return const _LoadingCard();
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
-          return Card(
-            color: Colors.blue.shade50,
-            child: const Padding(
-              padding: EdgeInsets.all(14),
-              child: Row(children: [
-                Icon(Icons.delivery_dining, color: Colors.blue),
-                SizedBox(width: 8),
-                Text('No hay entregas en camino'),
-              ]),
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
             ),
+            child: const Row(children: [
+              Icon(Icons.delivery_dining, color: Colors.blue, size: 18),
+              SizedBox(width: 8),
+              Text('No hay entregas en camino',
+                  style: TextStyle(color: Colors.white60)),
+            ]),
           );
         }
         return Column(
           children: docs.map((doc) {
             final repartidorId = doc['repartidorId'];
             return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('users').doc(repartidorId).get(),
+              future: FirebaseFirestore.instance
+                  .collection('users').doc(repartidorId).get(),
               builder: (context, snap) {
                 final nombre = snap.hasData
                     ? snap.data!['email']?.split('@')[0] ?? 'Repartidor'
                     : 'Repartidor';
-                return Card(
-                  color: Colors.indigo.shade50,
-                  margin: const EdgeInsets.only(bottom: 6),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Colors.indigo,
-                      child: Icon(Icons.delivery_dining, color: Colors.white, size: 18),
-                    ),
-                    title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    subtitle: const Text('Entregando pedido', style: TextStyle(fontSize: 12)),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(10)),
-                      child: const Text('En camino', style: TextStyle(color: Colors.white, fontSize: 10)),
-                    ),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: Colors.indigo.withOpacity(0.4)),
                   ),
+                  child: Row(children: [
+                    Container(
+                      width: 36, height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(child: Icon(
+                          Icons.delivery_dining,
+                          color: Colors.indigo, size: 18)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(nombre, style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Text('Entregando pedido',
+                          style: TextStyle(
+                              color: Colors.white38, fontSize: 12)),
+                    ])),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: Colors.indigo.withOpacity(0.5)),
+                      ),
+                      child: const Text('En camino',
+                          style: TextStyle(
+                              color: Colors.indigo,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ]),
                 );
               },
             );
@@ -339,33 +386,61 @@ class _HomeAdminState extends State<HomeAdmin> {
         if (!snapshot.hasData) return const _LoadingCard();
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
-          return Card(
-            color: Colors.grey.shade50,
-            child: const Padding(padding: EdgeInsets.all(14), child: Text('No hay pedidos recientes')),
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text('No hay pedidos recientes',
+                style: TextStyle(color: Colors.white60)),
           );
         }
         return Column(
           children: docs.map((doc) {
-            final p = PedidoModel.fromFirestore(doc.id, doc.data() as Map<String, dynamic>);
+            final p = PedidoModel.fromFirestore(
+                doc.id, doc.data() as Map<String, dynamic>);
             final color = _colorEstado(p.estado);
             final diff = DateTime.now().difference(p.fecha);
             final tiempo = diff.inMinutes < 60
                 ? '${diff.inMinutes}m'
-                : diff.inHours < 24 ? '${diff.inHours}h' : '${diff.inDays}d';
-            return Card(
-              margin: const EdgeInsets.only(bottom: 6),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: color.withOpacity(0.15),
-                  child: Icon(_iconoEstado(p.estado), color: color, size: 18),
-                ),
-                title: Text('\$${p.total.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: Text('${p.items.length} items · ${p.estado}',
-                    style: const TextStyle(fontSize: 12)),
-                trailing: Text(tiempo,
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                : diff.inHours < 24
+                    ? '${diff.inHours}h'
+                    : '${diff.inDays}d';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.3)),
               ),
+              child: Row(children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(child: Icon(_iconoEstado(p.estado),
+                      color: color, size: 18)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('\$${p.total.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('${p.items.length} items · ${p.estado}',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 12)),
+                ])),
+                Text(tiempo,
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 11)),
+              ]),
             );
           }).toList(),
         );
@@ -373,12 +448,14 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
+  // ── Tab Categorías ────────────────────────────────────────────
   Widget _buildCategoriasTab() {
     return StreamBuilder<List<CategoriaModel>>(
       stream: _categoriaService.obtenerCategorias(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.purple));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return _EmptyState(
@@ -391,9 +468,12 @@ class _HomeAdminState extends State<HomeAdmin> {
         final disponibles = cats.where((c) => c.disponible).length;
         return Column(children: [
           _StatsHeader(stats: [
-            _StatData('Total', cats.length.toString(), Icons.category, Colors.purple),
-            _StatData('Visibles', disponibles.toString(), Icons.check_circle, Colors.green),
-            _StatData('Ocultas', (cats.length - disponibles).toString(), Icons.visibility_off, Colors.orange),
+            _StatData('Total', cats.length.toString(),
+                Icons.category, Colors.purple),
+            _StatData('Visibles', disponibles.toString(),
+                Icons.check_circle, Colors.green),
+            _StatData('Ocultas', (cats.length - disponibles).toString(),
+                Icons.visibility_off, Colors.orange),
           ]),
           Expanded(
             child: ListView.builder(
@@ -408,10 +488,16 @@ class _HomeAdminState extends State<HomeAdmin> {
   }
 
   Widget _buildCategoriaCard(CategoriaModel cat) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: cat.disponible
+                ? Colors.purple.withOpacity(0.3)
+                : Colors.white.withOpacity(0.08)),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => _mostrarDialogoEditarCategoria(cat),
@@ -421,18 +507,27 @@ class _HomeAdminState extends State<HomeAdmin> {
             Container(
               width: 56, height: 56,
               decoration: BoxDecoration(
-                color: cat.disponible ? Colors.purple.shade100 : Colors.grey.shade200,
+                color: cat.disponible
+                    ? Colors.purple.withOpacity(0.15)
+                    : Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Center(child: Text(cat.icono, style: const TextStyle(fontSize: 28))),
+              child: Center(
+                  child: Text(cat.icono,
+                      style: const TextStyle(fontSize: 28))),
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(cat.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(cat.nombre, style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 6, children: [
-                  _Chip(cat.disponible ? 'Visible' : 'Oculta', cat.disponible ? Colors.green : Colors.orange),
+                  _Chip(cat.disponible ? 'Visible' : 'Oculta',
+                      cat.disponible ? Colors.green : Colors.orange),
                   _Chip('Orden: ${cat.orden}', Colors.blue),
                   if (cat.requiereCocina) _Chip('Cocina', Colors.purple),
                 ]),
@@ -448,12 +543,14 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
+  // ── Tab Productos ─────────────────────────────────────────────
   Widget _buildProductosTab() {
     return StreamBuilder<List<ProductoModel>>(
       stream: _productoService.obtenerProductos(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.purple));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return _EmptyState(
@@ -466,9 +563,12 @@ class _HomeAdminState extends State<HomeAdmin> {
         final disponibles = prods.where((p) => p.disponible).length;
         return Column(children: [
           _StatsHeader(stats: [
-            _StatData('Total', prods.length.toString(), Icons.inventory, Colors.purple),
-            _StatData('Disponibles', disponibles.toString(), Icons.check_circle, Colors.green),
-            _StatData('Agotados', (prods.length - disponibles).toString(), Icons.remove_circle, Colors.red),
+            _StatData('Total', prods.length.toString(),
+                Icons.inventory, Colors.purple),
+            _StatData('Disponibles', disponibles.toString(),
+                Icons.check_circle, Colors.green),
+            _StatData('Agotados', (prods.length - disponibles).toString(),
+                Icons.remove_circle, Colors.red),
           ]),
           Expanded(
             child: ListView.builder(
@@ -483,10 +583,16 @@ class _HomeAdminState extends State<HomeAdmin> {
   }
 
   Widget _buildProductoCard(ProductoModel p) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: p.disponible
+                ? Colors.purple.withOpacity(0.3)
+                : Colors.white.withOpacity(0.08)),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => _mostrarDialogoEditarProducto(p),
@@ -496,18 +602,27 @@ class _HomeAdminState extends State<HomeAdmin> {
             Container(
               width: 56, height: 56,
               decoration: BoxDecoration(
-                color: p.disponible ? Colors.purple.shade100 : Colors.grey.shade200,
+                color: p.disponible
+                    ? Colors.purple.withOpacity(0.15)
+                    : Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Center(child: Text(p.icono, style: const TextStyle(fontSize: 28))),
+              child: Center(
+                  child: Text(p.icono,
+                      style: const TextStyle(fontSize: 28))),
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(p.nombre, style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 3),
                 Text(p.descripcion,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 12),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 6, children: [
@@ -527,6 +642,7 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
+  // ── Diálogos ──────────────────────────────────────────────────
   void _mostrarDialogoAgregarCategoria() {
     final nombreCtrl = TextEditingController();
     String iconoSel = iconosDisponibles[0];
@@ -537,37 +653,59 @@ class _HomeAdminState extends State<HomeAdmin> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: const Text('➕ Agregar Categoría'),
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('➕ Agregar Categoría',
+              style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               _campo(nombreCtrl, 'Nombre', Icons.category),
               const SizedBox(height: 14),
-              const Text('Selecciona un icono:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Selecciona un icono:',
+                  style: TextStyle(
+                      color: Colors.white70, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               _selectorIconos(iconoSel, (i) => setD(() => iconoSel = i)),
               const SizedBox(height: 14),
               TextField(
-                decoration: const InputDecoration(labelText: 'Orden de aparición', prefixIcon: Icon(Icons.sort), border: OutlineInputBorder()),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Orden de aparición',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  prefixIcon: Icon(Icons.sort, color: Colors.purple),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.purple)),
+                ),
                 keyboardType: TextInputType.number,
                 onChanged: (v) => orden = int.tryParse(v) ?? 0,
               ),
               const SizedBox(height: 8),
               SwitchListTile(
-                title: const Text('Requiere cocina'),
+                title: const Text('Requiere cocina',
+                    style: TextStyle(color: Colors.white70)),
                 value: requiereCocina,
+                activeColor: Colors.purple,
                 onChanged: (v) => setD(() => requiereCocina = v),
               ),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: Colors.white38))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white),
               onPressed: () async {
                 if (nombreCtrl.text.isEmpty) return;
                 await _categoriaService.agregarCategoria(CategoriaModel(
                   id: '', nombre: nombreCtrl.text, icono: iconoSel,
-                  disponible: true, orden: orden, requiereCocina: requiereCocina,
+                  disponible: true, orden: orden,
+                  requiereCocina: requiereCocina,
                 ));
                 if (ctx.mounted) Navigator.pop(ctx);
                 _snack('✅ Categoría agregada', Colors.green);
@@ -591,34 +729,68 @@ class _HomeAdminState extends State<HomeAdmin> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: const Text('✏️ Editar Categoría'),
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('✏️ Editar Categoría',
+              style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               _campo(nombreCtrl, 'Nombre', Icons.category),
               const SizedBox(height: 14),
-              const Text('Icono:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Icono:',
+                  style: TextStyle(
+                      color: Colors.white70, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               _selectorIconos(iconoSel, (i) => setD(() => iconoSel = i)),
               const SizedBox(height: 14),
               TextField(
-                decoration: const InputDecoration(labelText: 'Orden', prefixIcon: Icon(Icons.sort), border: OutlineInputBorder()),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Orden',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  prefixIcon: Icon(Icons.sort, color: Colors.purple),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.purple)),
+                ),
                 keyboardType: TextInputType.number,
                 controller: TextEditingController(text: orden.toString()),
                 onChanged: (v) => orden = int.tryParse(v) ?? 0,
               ),
-              SwitchListTile(title: const Text('Visible'), value: disponible, onChanged: (v) => setD(() => disponible = v)),
-              SwitchListTile(title: const Text('Requiere cocina'), value: requiereCocina, onChanged: (v) => setD(() => requiereCocina = v)),
+              SwitchListTile(
+                title: const Text('Visible',
+                    style: TextStyle(color: Colors.white70)),
+                value: disponible,
+                activeColor: Colors.purple,
+                onChanged: (v) => setD(() => disponible = v),
+              ),
+              SwitchListTile(
+                title: const Text('Requiere cocina',
+                    style: TextStyle(color: Colors.white70)),
+                value: requiereCocina,
+                activeColor: Colors.purple,
+                onChanged: (v) => setD(() => requiereCocina = v),
+              ),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: Colors.white38))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white),
               onPressed: () async {
-                await _categoriaService.editarCategoria(cat.id, CategoriaModel(
-                  id: cat.id, nombre: nombreCtrl.text, icono: iconoSel,
-                  disponible: disponible, orden: orden, requiereCocina: requiereCocina,
-                ));
+                await _categoriaService.editarCategoria(
+                    cat.id,
+                    CategoriaModel(
+                      id: cat.id, nombre: nombreCtrl.text,
+                      icono: iconoSel, disponible: disponible,
+                      orden: orden, requiereCocina: requiereCocina,
+                    ));
                 if (ctx.mounted) Navigator.pop(ctx);
                 _snack('✅ Categoría actualizada', Colors.green);
               },
@@ -641,7 +813,7 @@ class _HomeAdminState extends State<HomeAdmin> {
   void _mostrarDialogoAgregarProducto() async {
     final nombreCtrl = TextEditingController();
     final precioCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
+    final descCtrl   = TextEditingController();
     String? catSel;
     final categorias = await _categoriaService.obtenerCategorias().first;
     if (!mounted) return;
@@ -650,42 +822,70 @@ class _HomeAdminState extends State<HomeAdmin> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: const Text('➕ Agregar Producto'),
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('➕ Agregar Producto',
+              style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               _campo(nombreCtrl, 'Nombre', Icons.fastfood),
               const SizedBox(height: 12),
               _campo(descCtrl, 'Descripción', Icons.description, maxLines: 3),
               const SizedBox(height: 12),
-              _campo(precioCtrl, 'Precio', Icons.attach_money, tipo: TextInputType.number),
+              _campo(precioCtrl, 'Precio', Icons.attach_money,
+                  tipo: TextInputType.number),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
-                initialValue: catSel,
+                dropdownColor: const Color(0xFF1E293B),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Categoría',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  prefixIcon: Icon(Icons.category, color: Colors.purple),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.purple)),
+                ),
                 items: categorias.map((c) => DropdownMenuItem(
                   value: c.id,
-                  child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),
+                  child: Row(children: [
+                    Text(c.icono, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(c.nombre,
+                        style: const TextStyle(color: Colors.white)),
+                  ]),
                 )).toList(),
                 onChanged: (v) => setD(() => catSel = v),
               ),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: Colors.white38))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white),
               onPressed: () async {
-                if (nombreCtrl.text.isEmpty || precioCtrl.text.isEmpty || catSel == null) {
+                if (nombreCtrl.text.isEmpty ||
+                    precioCtrl.text.isEmpty ||
+                    catSel == null) {
                   _snack('⚠️ Completa todos los campos', Colors.orange);
                   return;
                 }
-                final categoria = categorias.firstWhere((c) => c.id == catSel);
+                final categoria =
+                    categorias.firstWhere((c) => c.id == catSel);
                 await _productoService.agregarProducto(ProductoModel(
                   id: '', nombre: nombreCtrl.text.trim(),
-                  precio: double.tryParse(precioCtrl.text.replaceAll(',', '.')) ?? 0,
+                  precio: double.tryParse(
+                          precioCtrl.text.replaceAll(',', '.')) ??
+                      0,
                   descripcion: descCtrl.text.trim(),
                   disponible: true,
-                  categoria: categoria.nombre, // Guarda el nombre exacto
+                  categoria: categoria.nombre,
                 ));
                 if (ctx.mounted) Navigator.pop(ctx);
                 _snack('✅ Producto agregado', Colors.green);
@@ -699,11 +899,13 @@ class _HomeAdminState extends State<HomeAdmin> {
   }
 
   void _mostrarDialogoEditarProducto(ProductoModel prod) async {
-    final nombreCtrl = TextEditingController(text: prod.nombre);
-    final precioCtrl = TextEditingController(text: prod.precio.toString());
-    final descCtrl = TextEditingController(text: prod.descripcion);
-    String catSel = prod.categoria;
-    bool disponible = prod.disponible;
+    final nombreCtrl =
+        TextEditingController(text: prod.nombre);
+    final precioCtrl =
+        TextEditingController(text: prod.precio.toString());
+    final descCtrl   = TextEditingController(text: prod.descripcion);
+    String catSel    = prod.categoria;
+    bool disponible  = prod.disponible;
     final categorias = await _categoriaService.obtenerCategorias().first;
     if (!mounted) return;
 
@@ -711,43 +913,77 @@ class _HomeAdminState extends State<HomeAdmin> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: const Text('✏️ Editar Producto'),
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('✏️ Editar Producto',
+              style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               _campo(nombreCtrl, 'Nombre', Icons.fastfood),
               const SizedBox(height: 12),
-              _campo(descCtrl, 'Descripción', Icons.description, maxLines: 3),
+              _campo(descCtrl, 'Descripción', Icons.description,
+                  maxLines: 3),
               const SizedBox(height: 12),
-              _campo(precioCtrl, 'Precio', Icons.attach_money, tipo: TextInputType.number),
+              _campo(precioCtrl, 'Precio', Icons.attach_money,
+                  tipo: TextInputType.number),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Categoría', prefixIcon: Icon(Icons.category), border: OutlineInputBorder()),
-                initialValue: categorias.any((c) => c.nombre == catSel) ? catSel : null,
+                dropdownColor: const Color(0xFF1E293B),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Categoría',
+                  labelStyle: TextStyle(color: Colors.white54),
+                  prefixIcon:
+                      Icon(Icons.category, color: Colors.purple),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white24)),
+                  focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.purple)),
+                ),
+                initialValue:
+                    categorias.any((c) => c.nombre == catSel)
+                        ? catSel
+                        : null,
                 items: categorias.map((c) => DropdownMenuItem(
                   value: c.nombre,
-                  child: Row(children: [Text(c.icono, style: const TextStyle(fontSize: 18)), const SizedBox(width: 8), Text(c.nombre)]),
+                  child: Row(children: [
+                    Text(c.icono, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(c.nombre,
+                        style: const TextStyle(color: Colors.white)),
+                  ]),
                 )).toList(),
                 onChanged: (v) => setD(() => catSel = v ?? catSel),
               ),
               SwitchListTile(
-                title: const Text('Disponible'),
+                title: const Text('Disponible',
+                    style: TextStyle(color: Colors.white70)),
                 value: disponible,
+                activeColor: Colors.purple,
                 onChanged: (v) => setD(() => disponible = v),
               ),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: Colors.white38))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white),
               onPressed: () async {
-                await _productoService.editarProducto(prod.id, ProductoModel(
-                  id: prod.id, nombre: nombreCtrl.text,
-                  precio: double.tryParse(precioCtrl.text) ?? prod.precio,
-                  descripcion: descCtrl.text,
-                  disponible: disponible,
-                  categoria: catSel,
-                ));
+                await _productoService.editarProducto(
+                    prod.id,
+                    ProductoModel(
+                      id: prod.id, nombre: nombreCtrl.text,
+                      precio:
+                          double.tryParse(precioCtrl.text) ?? prod.precio,
+                      descripcion: descCtrl.text,
+                      disponible: disponible,
+                      categoria: catSel,
+                    ));
                 if (ctx.mounted) Navigator.pop(ctx);
                 _snack('✅ Producto actualizado', Colors.green);
               },
@@ -770,8 +1006,20 @@ class _HomeAdminState extends State<HomeAdmin> {
   Widget _campo(TextEditingController ctrl, String label, IconData icon,
       {int maxLines = 1, TextInputType tipo = TextInputType.text}) {
     return TextField(
-      controller: ctrl, keyboardType: tipo, maxLines: maxLines,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder()),
+      controller: ctrl,
+      keyboardType: tipo,
+      maxLines: maxLines,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white54),
+        prefixIcon: Icon(icon, color: Colors.purple),
+        border: const OutlineInputBorder(),
+        enabledBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.white24)),
+        focusedBorder: const OutlineInputBorder(
+            borderSide: BorderSide(color: Colors.purple)),
+      ),
     );
   }
 
@@ -785,11 +1033,16 @@ class _HomeAdminState extends State<HomeAdmin> {
           child: Container(
             width: 46, height: 46,
             decoration: BoxDecoration(
-              color: isSel ? Colors.purple.shade100 : Colors.grey.shade100,
+              color: isSel
+                  ? Colors.purple.withOpacity(0.25)
+                  : const Color(0xFF0F172A),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: isSel ? Colors.purple : Colors.grey.shade300, width: 2),
+              border: Border.all(
+                  color: isSel ? Colors.purple : Colors.white24,
+                  width: 2),
             ),
-            child: Center(child: Text(i, style: const TextStyle(fontSize: 22))),
+            child: Center(
+                child: Text(i, style: const TextStyle(fontSize: 22))),
           ),
         );
       }).toList(),
@@ -798,53 +1051,71 @@ class _HomeAdminState extends State<HomeAdmin> {
 
   Future<bool> _confirmar(String mensaje) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Confirmar'),
-        content: Text(mensaje),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            title: const Text('⚠️ Confirmar',
+                style: TextStyle(color: Colors.white)),
+            content: Text(mensaje,
+                style: const TextStyle(color: Colors.white70)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar',
+                      style: TextStyle(color: Colors.white38))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
           ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   void _snack(String msg, Color color) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 }
 
 // ─── WIDGETS AUXILIARES ───────────────────────────────────────
-
 class _LoadingCard extends StatelessWidget {
   const _LoadingCard();
   @override
-  Widget build(BuildContext context) => const Card(
-    child: Padding(
-      padding: EdgeInsets.all(16),
-      child: Center(child: CircularProgressIndicator()),
+  Widget build(BuildContext context) => Container(
+    height: 80,
+    decoration: BoxDecoration(
+      color: const Color(0xFF1E293B),
+      borderRadius: BorderRadius.circular(12),
     ),
+    child: const Center(
+        child: CircularProgressIndicator(
+            color: Colors.purple, strokeWidth: 2)),
   );
 }
 
 class _EmptyState extends StatelessWidget {
   final IconData icono;
   final String mensaje, sub;
-  const _EmptyState({required this.icono, required this.mensaje, required this.sub});
+  const _EmptyState(
+      {required this.icono, required this.mensaje, required this.sub});
   @override
   Widget build(BuildContext context) => Center(
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(icono, size: 100, color: Colors.grey.shade300),
+      Icon(icono, size: 100, color: Colors.white10),
       const SizedBox(height: 16),
-      Text(mensaje, style: TextStyle(fontSize: 20, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+      Text(mensaje,
+          style: const TextStyle(
+              fontSize: 20,
+              color: Colors.white38,
+              fontWeight: FontWeight.bold)),
       const SizedBox(height: 8),
-      Text(sub, style: TextStyle(color: Colors.grey.shade500)),
+      Text(sub, style: const TextStyle(color: Colors.white24)),
     ]),
   );
 }
@@ -862,16 +1133,22 @@ class _StatsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
-    color: Colors.purple.shade50,
+    color: const Color(0xFF0F172A),
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: stats.map((s) => Expanded(
         child: Column(children: [
           Icon(s.icon, color: s.color, size: 28),
           const SizedBox(height: 6),
-          Text(s.value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: s.color)),
+          Text(s.value,
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: s.color)),
           const SizedBox(height: 2),
-          Text(s.label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(s.label,
+              style: const TextStyle(
+                  fontSize: 12, color: Colors.white54)),
         ]),
       )).toList(),
     ),
@@ -886,10 +1163,12 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
+      color: color.withOpacity(0.15),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.3)),
+      border: Border.all(color: color.withOpacity(0.4)),
     ),
-    child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+    child: Text(label,
+        style: TextStyle(
+            fontSize: 11, color: color, fontWeight: FontWeight.bold)),
   );
 }

@@ -8,7 +8,7 @@
     <!-- ☝️ FIN DE PERMISOS -->
 
     <application
-        android:label="pizzeria_app"
+        android:label="PIZZERIA LA ITALIANA"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

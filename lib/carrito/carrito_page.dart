@@ -58,11 +58,9 @@ class _CarritoPageState extends State<CarritoPage> {
               Expanded(child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // ── Items del carrito ──
                   ...carrito.items.asMap().entries.map((e) => _ItemCard(item: e.value, index: e.key)),
                   const SizedBox(height: 16),
 
-                  // ── Tipo de pedido ──
                   _seccion(
                     titulo: '¿Cómo quieres tu pedido?',
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -81,14 +79,12 @@ class _CarritoPageState extends State<CarritoPage> {
                       ]),
                       const SizedBox(height: 16),
 
-                      // ── Selector de mesa ──
                       if (_tipoPedido == 'mesa')
                         _SelectorMesas(
                           mesaSeleccionada: _mesaSeleccionada,
                           onMesaSeleccionada: (n) => setState(() => _mesaSeleccionada = n),
                         ),
 
-                      // ── Campos domicilio ──
                       if (_tipoPedido == 'domicilio') ...[
                         _campo(_direccionCtrl, 'Dirección de entrega *', Icons.location_on),
                         const SizedBox(height: 12),
@@ -99,7 +95,6 @@ class _CarritoPageState extends State<CarritoPage> {
 
                   const SizedBox(height: 12),
 
-                  // ── Método de pago ──
                   _seccion(
                     titulo: '💳 Método de pago',
                     child: Column(children: [
@@ -146,7 +141,6 @@ class _CarritoPageState extends State<CarritoPage> {
 
                   const SizedBox(height: 12),
 
-                  // ── Cupón de descuento ──
                   _seccion(
                     titulo: '🎟️ ¿Tienes un cupón?',
                     child: _CuponField(
@@ -164,7 +158,6 @@ class _CarritoPageState extends State<CarritoPage> {
 
                   const SizedBox(height: 12),
 
-                  // ── Resumen de precios ──
                   _seccion(
                     titulo: 'Resumen',
                     child: Column(children: [
@@ -181,7 +174,6 @@ class _CarritoPageState extends State<CarritoPage> {
                 ],
               )),
 
-              // ── Botón confirmar ──
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 decoration: BoxDecoration(
@@ -394,23 +386,35 @@ class _CarritoPageState extends State<CarritoPage> {
                 style: TextStyle(fontSize: 15, color: Colors.white70)),
             const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.orange.withOpacity(0.1),
                 border: Border.all(color: Colors.orange, width: 2),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(pedido.codigoVerificacion,
-                    style: const TextStyle(fontSize: 38, fontWeight: FontWeight.bold,
-                        letterSpacing: 10, color: Colors.orange)),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.copy, color: Colors.orange),
+              // ── ARREGLO: Column en lugar de Row para evitar overflow ──
+              child: Column(children: [
+                Text(
+                  pedido.codigoVerificacion,
+                  style: const TextStyle(
+                    fontSize: 38,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 10,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  icon: const Icon(Icons.copy, color: Colors.orange, size: 16),
+                  label: const Text('Copiar código',
+                      style: TextStyle(color: Colors.orange, fontSize: 13)),
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(text: pedido.codigoVerificacion));
+                    Clipboard.setData(
+                        ClipboardData(text: pedido.codigoVerificacion));
                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Código copiado ✅'),
+                        const SnackBar(
+                            content: Text('Código copiado ✅'),
                             duration: Duration(seconds: 1)));
                   },
                 ),
@@ -491,7 +495,6 @@ class _SelectorMesas extends StatelessWidget {
 
             final mesas = mesasSnap.data?.docs ?? [];
 
-            // Mesas con pedido activo
             final mesasOcupadas = <int>{};
             for (final doc in pedidosSnap.data?.docs ?? []) {
               final data = doc.data() as Map<String, dynamic>;
@@ -517,7 +520,6 @@ class _SelectorMesas extends StatelessWidget {
             }
 
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Leyenda
               Row(children: [
                 _Leyenda(color: Colors.green, label: 'Libre'),
                 const SizedBox(width: 16),
@@ -526,8 +528,6 @@ class _SelectorMesas extends StatelessWidget {
                 _Leyenda(color: Colors.orange, label: 'Seleccionada'),
               ]),
               const SizedBox(height: 12),
-
-              // Grid de mesas
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -544,7 +544,6 @@ class _SelectorMesas extends StatelessWidget {
                   final capacidad = data['capacidad'] as int? ?? 4;
                   final ocupada = mesasOcupadas.contains(numero);
                   final seleccionada = mesaSeleccionada == numero;
-
                   return _MesaBtn(
                     numero: numero,
                     capacidad: capacidad,
@@ -554,7 +553,6 @@ class _SelectorMesas extends StatelessWidget {
                   );
                 },
               ),
-
               if (mesaSeleccionada != null) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -732,7 +730,6 @@ Widget _PrecioRow(String label, String valor, {bool bold = false, Color? color})
   ]),
 );
 
-// ── Botón método de pago ──────────────────────────────────────
 class _MetodoPagoBtn extends StatelessWidget {
   final String icono, label;
   final bool selected;
@@ -773,7 +770,7 @@ class _MetodoPagoBtn extends StatelessWidget {
     ),
   );
 }
-// ── Campo de cupón ────────────────────────────────────────────
+
 class _CuponField extends StatelessWidget {
   final TextEditingController ctrl;
   final double descuento;
