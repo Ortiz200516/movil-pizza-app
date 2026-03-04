@@ -42,7 +42,7 @@ class _CocinaAppBarState extends State<_CocinaAppBar> {
   @override
   void initState() { super.initState(); _ahora = DateTime.now(); _tick(); }
   void _tick() {
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(seconds: 60), () {
       if (mounted) setState(() { _ahora = DateTime.now(); _tick(); });
     });
   }
@@ -51,7 +51,7 @@ class _CocinaAppBarState extends State<_CocinaAppBar> {
   Widget build(BuildContext context) {
     final h = _ahora.hour.toString().padLeft(2, '0');
     final m = _ahora.minute.toString().padLeft(2, '0');
-    final s = _ahora.second.toString().padLeft(2, '0');
+    
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return AppBar(
@@ -74,7 +74,7 @@ class _CocinaAppBarState extends State<_CocinaAppBar> {
           ]),
         ),
         const SizedBox(width: 16),
-        Text('$h:$m:$s', style: const TextStyle(color: Colors.white24,
+        Text('$h:$m', style: const TextStyle(color: Colors.white24,
             fontSize: 15, fontFamily: 'monospace', letterSpacing: 2)),
       ]),
       actions: [
