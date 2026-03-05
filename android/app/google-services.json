@@ -48,6 +48,42 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:407730041770:android:625e52e0a0c79f04c031d3",
+        "android_client_info": {
+          "package_name": "com.laitaliana.pizzeria"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "407730041770-9u7aa32ndb8lc7nqmqo3cgd1jgl2dpc3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhSlCmYk0Jjc5jWEXc3Jo8JGg2EOOI0lE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "407730041770-9u7aa32ndb8lc7nqmqo3cgd1jgl2dpc3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "407730041770-ns2djqnuu45jr4pb41a0ks47le6d3leu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.pizzeriaApp"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"
