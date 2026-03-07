@@ -6,8 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/producto_model.dart';
 import '../services/producto_service.dart';
 import '../carrito/carrito_provider.dart';
+import 'promociones_cliente_widget.dart'; // ← NUEVO
 
-// ─── HELPERS ─────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 const List<Color> _paleta = [
   Color(0xFFFF6B35), Color(0xFFFFB800), Color(0xFF38BDF8),
   Color(0xFF818CF8), Color(0xFFFB7185), Color(0xFF4ADE80),
@@ -33,7 +34,7 @@ Color _colorDeCat(String cat) {
 String _capitalizar(String s) =>
     s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-// ─── MENU PAGE ────────────────────────────────────────────────
+// ─── MENU PAGE ────────────────────────────────────────────────────────────────
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
   @override
@@ -71,11 +72,10 @@ class _MenuPageState extends State<MenuPage> {
     return Container(
       color: const Color(0xFF0F172A),
       child: CustomScrollView(
-        // ← Un solo scroll para TODO (header + chips + grid)
         physics: const BouncingScrollPhysics(),
         slivers: [
 
-          // ── Header colapsable ──────────────────────────────
+          // ── Header colapsable ──────────────────────────────────────────
           SliverAppBar(
             backgroundColor: const Color(0xFF0F172A),
             expandedHeight: 90,
@@ -125,7 +125,7 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // ── Buscador + chips (sticky) ──────────────────────
+          // ── Buscador + chips (sticky) ──────────────────────────────────
           SliverPersistentHeader(
             pinned: true,
             delegate: _SearchBarDelegate(
@@ -145,7 +145,16 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // ── Grid de productos ──────────────────────────────
+          // ── PROMOCIONES (banners + combos) ← NUEVO ────────────────────
+          if (_query.isEmpty && _catSel == null)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(14, 14, 14, 0),
+                child: PromocionesWidget(),
+              ),
+            ),
+
+          // ── Grid de productos ──────────────────────────────────────────
           StreamBuilder<List<ProductoModel>>(
             stream: _service.obtenerProductos(),
             builder: (context, snap) {
@@ -231,7 +240,7 @@ class _MenuPageState extends State<MenuPage> {
   );
 }
 
-// ─── DELEGATE PARA BUSCADOR + CHIPS (sticky) ──────────────────
+// ─── DELEGATE PARA BUSCADOR + CHIPS (sticky) ──────────────────────────────────
 class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   final String query;
   final String? catSel;
@@ -264,7 +273,6 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
     return Container(
       color: const Color(0xFF0F172A),
       child: Column(children: [
-        // Buscador
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
           child: Container(
@@ -297,7 +305,6 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
             ),
           ),
         ),
-        // Chips categorías
         if (query.isEmpty)
           SizedBox(
             height: 44,
@@ -352,7 +359,7 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-// ─── CHIP ─────────────────────────────────────────────────────
+// ─── CHIP ─────────────────────────────────────────────────────────────────────
 class _CatChip extends StatelessWidget {
   final String label;
   final Color color;
@@ -396,7 +403,7 @@ class _CatChip extends StatelessWidget {
   );
 }
 
-// ─── TARJETA PRODUCTO ─────────────────────────────────────────
+// ─── TARJETA PRODUCTO ─────────────────────────────────────────────────────────
 class _TarjetaProducto extends StatefulWidget {
   final ProductoModel producto;
   final int index;
@@ -607,7 +614,7 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
   }
 }
 
-// ─── SHEET DE DETALLE ─────────────────────────────────────────
+// ─── SHEET DE DETALLE ─────────────────────────────────────────────────────────
 class _DetalleSheet extends StatefulWidget {
   final ProductoModel producto;
   const _DetalleSheet({required this.producto});
