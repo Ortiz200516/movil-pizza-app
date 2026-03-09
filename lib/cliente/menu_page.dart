@@ -6,9 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/producto_model.dart';
 import '../services/producto_service.dart';
 import '../carrito/carrito_provider.dart';
-import 'promociones_cliente_widget.dart'; // ← NUEVO
+import 'resenas_page.dart';
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 const List<Color> _paleta = [
   Color(0xFFFF6B35), Color(0xFFFFB800), Color(0xFF38BDF8),
   Color(0xFF818CF8), Color(0xFFFB7185), Color(0xFF4ADE80),
@@ -34,7 +34,7 @@ Color _colorDeCat(String cat) {
 String _capitalizar(String s) =>
     s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-// ─── MENU PAGE ────────────────────────────────────────────────────────────────
+// ─── MENU PAGE ─────────────────────────────────────────────────────────────────
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
   @override
@@ -75,7 +75,7 @@ class _MenuPageState extends State<MenuPage> {
         physics: const BouncingScrollPhysics(),
         slivers: [
 
-          // ── Header colapsable ──────────────────────────────────────────
+          // ── Header con botón reseñas ───────────────────────────────────────
           SliverAppBar(
             backgroundColor: const Color(0xFF0F172A),
             expandedHeight: 90,
@@ -83,6 +83,10 @@ class _MenuPageState extends State<MenuPage> {
             snap: true,
             elevation: 0,
             automaticallyImplyLeading: false,
+            actions: [
+              _BotonResenas(),
+              const SizedBox(width: 12),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -125,7 +129,7 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // ── Buscador + chips (sticky) ──────────────────────────────────
+          // ── Buscador + chips sticky ────────────────────────────────────────
           SliverPersistentHeader(
             pinned: true,
             delegate: _SearchBarDelegate(
@@ -145,16 +149,7 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // ── PROMOCIONES (banners + combos) ← NUEVO ────────────────────
-          if (_query.isEmpty && _catSel == null)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(14, 14, 14, 0),
-                child: PromocionesWidget(),
-              ),
-            ),
-
-          // ── Grid de productos ──────────────────────────────────────────
+          // ── Grid de productos ──────────────────────────────────────────────
           StreamBuilder<List<ProductoModel>>(
             stream: _service.obtenerProductos(),
             builder: (context, snap) {
@@ -164,9 +159,7 @@ class _MenuPageState extends State<MenuPage> {
                       color: Color(0xFFFF6B35))),
                 );
               }
-
               var productos = snap.data ?? [];
-
               if (_catSel != null) {
                 productos = productos
                     .where((p) => p.categoria.trim() == _catSel!.trim())
@@ -181,11 +174,9 @@ class _MenuPageState extends State<MenuPage> {
                         p.categoria.toLowerCase().contains(q))
                     .toList();
               }
-
               if (productos.isEmpty) {
                 return SliverFillRemaining(child: _buildVacio());
               }
-
               return SliverPadding(
                 padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
                 sliver: SliverGrid(
@@ -240,7 +231,49 @@ class _MenuPageState extends State<MenuPage> {
   );
 }
 
-// ─── DELEGATE PARA BUSCADOR + CHIPS (sticky) ──────────────────────────────────
+// ─── BOTÓN RESEÑAS con promedio en tiempo real ────────────────────────────────
+class _BotonResenas extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('calificaciones').snapshots(),
+      builder: (context, snap) {
+        String label = '⭐ Reseñas';
+        if (snap.hasData && snap.data!.docs.isNotEmpty) {
+          final docs = snap.data!.docs;
+          final suma = docs.fold<int>(0, (acc, d) {
+            final data = d.data() as Map<String, dynamic>;
+            return acc + ((data['estrellas'] as num?)?.toInt() ?? 0);
+          });
+          final promedio = suma / docs.length;
+          label = '⭐ ${promedio.toStringAsFixed(1)}';
+        }
+        return GestureDetector(
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const ResenasPage())),
+          child: Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF6B00).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: const Color(0xFFFF6B00).withOpacity(0.4)),
+            ),
+            child: Text(label,
+                style: const TextStyle(
+                    color: Color(0xFFFF6B00),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── DELEGATE BUSCADOR + CHIPS ─────────────────────────────────────────────────
 class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   final String query;
   final String? catSel;
@@ -250,26 +283,18 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   final ValueChanged<String?> onCatSelected;
 
   const _SearchBarDelegate({
-    required this.query,
-    required this.catSel,
-    required this.searchCtrl,
-    required this.onQueryChanged,
-    required this.onClearQuery,
-    required this.onCatSelected,
+    required this.query, required this.catSel,
+    required this.searchCtrl, required this.onQueryChanged,
+    required this.onClearQuery, required this.onCatSelected,
   });
 
-  @override
-  double get minExtent => 110;
-  @override
-  double get maxExtent => 110;
-
-  @override
-  bool shouldRebuild(_SearchBarDelegate old) =>
+  @override double get minExtent => 110;
+  @override double get maxExtent => 110;
+  @override bool shouldRebuild(_SearchBarDelegate old) =>
       old.query != query || old.catSel != catSel;
 
   @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: const Color(0xFF0F172A),
       child: Column(children: [
@@ -295,8 +320,7 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
                     ? IconButton(
                         icon: Icon(Icons.close,
                             color: Colors.white.withOpacity(0.3), size: 18),
-                        onPressed: onClearQuery,
-                      )
+                        onPressed: onClearQuery)
                     : null,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
@@ -310,8 +334,7 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
             height: 44,
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('categorias')
-                  .snapshots(),
+                  .collection('categorias').snapshots(),
               builder: (_, snap) {
                 if (!snap.hasData) return const SizedBox.shrink();
                 final docs = snap.data!.docs
@@ -326,17 +349,14 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
                     return ((da['orden'] ?? 999) as int)
                         .compareTo((db['orden'] ?? 999) as int);
                   });
-
                 return ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   children: [
-                    _CatChip(
-                      label: '🍽️  Todo',
-                      color: const Color(0xFFFF6B35),
-                      selected: catSel == null,
-                      onTap: () => onCatSelected(null),
-                    ),
+                    _CatChip(label: '🍽️  Todo',
+                        color: const Color(0xFFFF6B35),
+                        selected: catSel == null,
+                        onTap: () => onCatSelected(null)),
                     ...List.generate(docs.length, (i) {
                       final d = docs[i].data() as Map<String, dynamic>;
                       final nombre = (d['nombre'] as String? ?? '').trim();
@@ -359,18 +379,12 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-// ─── CHIP ─────────────────────────────────────────────────────────────────────
+// ─── CHIP ──────────────────────────────────────────────────────────────────────
 class _CatChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-  const _CatChip(
-      {required this.label,
-      required this.color,
-      required this.selected,
-      required this.onTap});
-
+  final String label; final Color color;
+  final bool selected; final VoidCallback onTap;
+  const _CatChip({required this.label, required this.color,
+      required this.selected, required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -379,43 +393,35 @@ class _CatChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: selected
-            ? color.withOpacity(0.18)
-            : const Color(0xFF1E293B),
+        color: selected ? color.withOpacity(0.18) : const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: selected
-              ? color.withOpacity(0.75)
-              : Colors.white.withOpacity(0.07),
+          color: selected ? color.withOpacity(0.75) : Colors.white.withOpacity(0.07),
           width: 1.5),
         boxShadow: selected
             ? [BoxShadow(color: color.withOpacity(0.18), blurRadius: 8)]
             : null,
       ),
-      child: Text(label,
-          style: TextStyle(
-            color: selected ? color : Colors.white.withOpacity(0.4),
-            fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-            fontSize: 12,
-            letterSpacing: 0.2,
-          )),
+      child: Text(label, style: TextStyle(
+        color: selected ? color : Colors.white.withOpacity(0.4),
+        fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+        fontSize: 12, letterSpacing: 0.2,
+      )),
     ),
   );
 }
 
-// ─── TARJETA PRODUCTO ─────────────────────────────────────────────────────────
+// ─── TARJETA PRODUCTO ──────────────────────────────────────────────────────────
 class _TarjetaProducto extends StatefulWidget {
-  final ProductoModel producto;
-  final int index;
+  final ProductoModel producto; final int index;
   const _TarjetaProducto({required this.producto, required this.index});
-  @override
-  State<_TarjetaProducto> createState() => _TarjetaProductoState();
+  @override State<_TarjetaProducto> createState() => _TarjetaProductoState();
 }
 
 class _TarjetaProductoState extends State<_TarjetaProducto>
     with SingleTickerProviderStateMixin {
   late AnimationController _bounceCtrl;
-  late Animation<double>   _bounceAnim;
+  late Animation<double> _bounceAnim;
 
   @override
   void initState() {
@@ -431,34 +437,26 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
     ]).animate(_bounceCtrl);
   }
 
-  @override
-  void dispose() {
-    _bounceCtrl.dispose();
-    super.dispose();
-  }
+  @override void dispose() { _bounceCtrl.dispose(); super.dispose(); }
 
   void _agregarRapido() {
     HapticFeedback.lightImpact();
     _bounceCtrl.forward(from: 0);
     Provider.of<CarritoProvider>(context, listen: false).agregarProducto({
-      'id': widget.producto.id,
-      'nombre': widget.producto.nombre,
-      'precio': widget.producto.precio,
-      'categoria': widget.producto.categoria,
+      'id': widget.producto.id, 'nombre': widget.producto.nombre,
+      'precio': widget.producto.precio, 'categoria': widget.producto.categoria,
       'icono': widget.producto.icono,
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Row(children: [
         Text(widget.producto.icono, style: const TextStyle(fontSize: 18)),
         const SizedBox(width: 8),
-        Expanded(
-            child: Text('${widget.producto.nombre} agregado',
-                style: const TextStyle(fontWeight: FontWeight.w600))),
+        Expanded(child: Text('${widget.producto.nombre} agregado',
+            style: const TextStyle(fontWeight: FontWeight.w600))),
       ]),
       backgroundColor: _colorDeCat(widget.producto.categoria),
       behavior: SnackBarBehavior.floating,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       duration: const Duration(seconds: 1),
     ));
@@ -466,8 +464,7 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
 
   void _verDetalle() {
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
+      context: context, isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _DetalleSheet(producto: widget.producto),
     );
@@ -477,7 +474,6 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
   Widget build(BuildContext context) {
     final color = _colorDeCat(widget.producto.categoria);
     final icono = widget.producto.icono;
-
     return GestureDetector(
       onTap: _verDetalle,
       child: AnimatedBuilder(
@@ -488,75 +484,57 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
           decoration: BoxDecoration(
             color: const Color(0xFF1E293B),
             borderRadius: BorderRadius.circular(18),
-            border:
-                Border.all(color: color.withOpacity(0.2), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                  color: color.withOpacity(0.07),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4)),
-            ],
+            border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.07),
+                blurRadius: 14, offset: const Offset(0, 4))],
           ),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
               flex: 5,
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.08),
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: Stack(children: [
-                  Positioned.fill(
-                    child: Center(
-                      child: Container(
-                        width: 70, height: 70,
-                        decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: color.withOpacity(0.08)),
-                      ),
-                    ),
-                  ),
-                  Center(
-                      child: Text(icono,
-                          style: const TextStyle(fontSize: 52))),
-                  Positioned(
-                    top: 8, left: 8,
+                  // Imagen o emoji
+                  Positioned.fill(child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: widget.producto.imagenUrl != null &&
+                            widget.producto.imagenUrl!.isNotEmpty
+                        ? Image.network(widget.producto.imagenUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Center(
+                                child: Text(icono,
+                                    style: const TextStyle(fontSize: 52))))
+                        : Center(child: Text(icono,
+                            style: const TextStyle(fontSize: 52))),
+                  )),
+                  // Badge categoría
+                  Positioned(top: 8, left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                          color: color.withOpacity(0.2),
+                          color: Colors.black.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(6)),
-                      child: Text(
-                          _capitalizar(widget.producto.categoria),
-                          style: TextStyle(
-                              color: color,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.3)),
+                      child: Text(_capitalizar(widget.producto.categoria),
+                          style: TextStyle(color: color, fontSize: 9,
+                              fontWeight: FontWeight.w800, letterSpacing: 0.3)),
                     ),
                   ),
+                  // Mini rating
+                  Positioned(top: 8, right: 8,
+                      child: _MiniRating()),
                   if (!widget.producto.disponible)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(16))),
-                        child: const Center(
-                          child: Text('NO DISPONIBLE',
-                              style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1)),
-                        ),
-                      ),
-                    ),
+                    Positioned.fill(child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+                      child: const Center(child: Text('NO DISPONIBLE',
+                          style: TextStyle(color: Colors.white54, fontSize: 10,
+                              fontWeight: FontWeight.bold, letterSpacing: 1))),
+                    )),
                 ]),
               ),
             ),
@@ -564,29 +542,16 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(widget.producto.nombre,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                          height: 1.2),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                  Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                      children: [
-                    Text(
-                        '\$${widget.producto.precio.toStringAsFixed(2)}',
-                        style: TextStyle(
-                            color: color,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.3)),
+                      style: const TextStyle(color: Colors.white,
+                          fontWeight: FontWeight.w700, fontSize: 12, height: 1.2),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text('\$${widget.producto.precio.toStringAsFixed(2)}',
+                        style: TextStyle(color: color, fontSize: 15,
+                            fontWeight: FontWeight.w900, letterSpacing: -0.3)),
                     if (widget.producto.disponible)
                       GestureDetector(
                         onTap: _agregarRapido,
@@ -594,13 +559,9 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
                           width: 30, height: 30,
                           decoration: BoxDecoration(
                               color: color.withOpacity(0.15),
-                              borderRadius:
-                                  BorderRadius.circular(9),
-                              border: Border.all(
-                                  color: color.withOpacity(0.5),
-                                  width: 1.5)),
-                          child: Icon(Icons.add,
-                              color: color, size: 16),
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(color: color.withOpacity(0.5), width: 1.5)),
+                          child: Icon(Icons.add, color: color, size: 16),
                         ),
                       ),
                   ]),
@@ -614,21 +575,53 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
   }
 }
 
-// ─── SHEET DE DETALLE ─────────────────────────────────────────────────────────
+// ─── MINI RATING badge ────────────────────────────────────────────────────────
+class _MiniRating extends StatelessWidget {
+  const _MiniRating();
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('calificaciones').limit(50).snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData || snap.data!.docs.isEmpty) return const SizedBox.shrink();
+        final docs = snap.data!.docs;
+        final suma = docs.fold<int>(0, (acc, d) {
+          final data = d.data() as Map<String, dynamic>;
+          return acc + ((data['estrellas'] as num?)?.toInt() ?? 0);
+        });
+        final promedio = suma / docs.length;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('⭐', style: TextStyle(fontSize: 9)),
+            const SizedBox(width: 2),
+            Text(promedio.toStringAsFixed(1),
+                style: const TextStyle(color: Colors.white,
+                    fontSize: 10, fontWeight: FontWeight.bold)),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+// ─── SHEET DE DETALLE ──────────────────────────────────────────────────────────
 class _DetalleSheet extends StatefulWidget {
   final ProductoModel producto;
   const _DetalleSheet({required this.producto});
-  @override
-  State<_DetalleSheet> createState() => _DetalleSheetState();
+  @override State<_DetalleSheet> createState() => _DetalleSheetState();
 }
 
 class _DetalleSheetState extends State<_DetalleSheet> {
   int _cantidad = 1;
   String? _tamanoSel;
   final _notasCtrl = TextEditingController();
-
-  @override
-  void dispose() { _notasCtrl.dispose(); super.dispose(); }
+  @override void dispose() { _notasCtrl.dispose(); super.dispose(); }
 
   double get _precioFinal {
     double p = widget.producto.precio;
@@ -640,7 +633,7 @@ class _DetalleSheetState extends State<_DetalleSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final color   = _colorDeCat(widget.producto.categoria);
+    final color    = _colorDeCat(widget.producto.categoria);
     final opciones = widget.producto.opciones;
     final tamanos  = opciones?['tamanios'] as List?
         ?? opciones?['tamaños'] as List?;
@@ -650,57 +643,72 @@ class _DetalleSheetState extends State<_DetalleSheet> {
         color: Color(0xFF1E293B),
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 14, 24, 34),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-          Center(child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
           Row(children: [
+            // Imagen del producto
             Container(
               width: 84, height: 84,
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: color.withOpacity(0.3))),
-              child: Center(child: Text(widget.producto.icono,
-                  style: const TextStyle(fontSize: 46))),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(17),
+                child: widget.producto.imagenUrl != null &&
+                        widget.producto.imagenUrl!.isNotEmpty
+                    ? Image.network(widget.producto.imagenUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(child: Text(
+                            widget.producto.icono,
+                            style: const TextStyle(fontSize: 46))))
+                    : Center(child: Text(widget.producto.icono,
+                        style: const TextStyle(fontSize: 46))),
+              ),
             ),
             const SizedBox(width: 16),
-            Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: color.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text(_capitalizar(widget.producto.categoria),
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800)),
+                    style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(height: 6),
               Text(widget.producto.nombre,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800)),
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text('\$${widget.producto.precio.toStringAsFixed(2)}',
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900)),
+              Row(children: [
+                Text('\$${widget.producto.precio.toStringAsFixed(2)}',
+                    style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w900)),
+                const Spacer(),
+                // Botón ver reseñas
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const ResenasPage()));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B00).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFF6B00).withOpacity(0.3)),
+                    ),
+                    child: const Text('Ver reseñas',
+                        style: TextStyle(color: Color(0xFFFF6B00),
+                            fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
             ])),
           ]),
           if (widget.producto.descripcion.isNotEmpty) ...[
@@ -710,13 +718,10 @@ class _DetalleSheetState extends State<_DetalleSheet> {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.03),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: Colors.white.withOpacity(0.06))),
+                border: Border.all(color: Colors.white.withOpacity(0.06))),
               child: Text(widget.producto.descripcion,
-                  style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
-                      fontSize: 13,
-                      height: 1.5)),
+                  style: TextStyle(color: Colors.white.withOpacity(0.5),
+                      fontSize: 13, height: 1.5)),
             ),
           ],
           if (tamanos != null && tamanos.isNotEmpty) ...[
@@ -729,25 +734,15 @@ class _DetalleSheetState extends State<_DetalleSheet> {
                 onTap: () => setState(() => _tamanoSel = t.toString()),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 9),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                   decoration: BoxDecoration(
-                    color: sel
-                        ? color.withOpacity(0.18)
-                        : const Color(0xFF0F172A),
+                    color: sel ? color.withOpacity(0.18) : const Color(0xFF0F172A),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: sel
-                            ? color
-                            : Colors.white.withOpacity(0.1),
-                        width: 1.5)),
-                  child: Text(t.toString(),
-                      style: TextStyle(
-                          color: sel
-                              ? color
-                              : Colors.white.withOpacity(0.5),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13)),
+                        color: sel ? color : Colors.white.withOpacity(0.1), width: 1.5)),
+                  child: Text(t.toString(), style: TextStyle(
+                      color: sel ? color : Colors.white.withOpacity(0.5),
+                      fontWeight: FontWeight.w700, fontSize: 13)),
                 ),
               );
             }).toList()),
@@ -759,47 +754,29 @@ class _DetalleSheetState extends State<_DetalleSheet> {
             decoration: BoxDecoration(
                 color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: Colors.white.withOpacity(0.07))),
+                border: Border.all(color: Colors.white.withOpacity(0.07))),
             child: TextField(
               controller: _notasCtrl,
-              style:
-                  const TextStyle(color: Colors.white, fontSize: 13),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
               maxLines: 2,
               decoration: InputDecoration(
                 hintText: 'Sin cebolla, bien cocido, sin sal...',
-                hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.22),
-                    fontSize: 13),
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.22), fontSize: 13),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.all(12),
               ),
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             _labelSeccion('Cantidad'),
             Row(children: [
-              _BtnCantidad(
-                  icono: Icons.remove,
-                  color: color,
-                  onTap: _cantidad > 1
-                      ? () => setState(() => _cantidad--)
-                      : null),
-              SizedBox(
-                width: 48,
-                child: Center(
-                    child: Text('$_cantidad',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900))),
-              ),
-              _BtnCantidad(
-                  icono: Icons.add,
-                  color: color,
+              _BtnCantidad(icono: Icons.remove, color: color,
+                  onTap: _cantidad > 1 ? () => setState(() => _cantidad--) : null),
+              SizedBox(width: 48, child: Center(child: Text('$_cantidad',
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 20, fontWeight: FontWeight.w900)))),
+              _BtnCantidad(icono: Icons.add, color: color,
                   onTap: () => setState(() => _cantidad++)),
             ]),
           ]),
@@ -807,59 +784,39 @@ class _DetalleSheetState extends State<_DetalleSheet> {
           GestureDetector(
             onTap: () {
               HapticFeedback.mediumImpact();
-              Provider.of<CarritoProvider>(context, listen: false)
-                  .agregarProducto({
-                'id': widget.producto.id,
-                'nombre': widget.producto.nombre,
-                'precio': widget.producto.precio,
-                'categoria': widget.producto.categoria,
-                'icono': widget.producto.icono,
-                'cantidad': _cantidad,
-                if (_tamanoSel != null)
-                  'opcionesSeleccionadas': {'tamano': _tamanoSel},
-                if (_notasCtrl.text.isNotEmpty)
-                  'notasEspeciales': _notasCtrl.text,
+              Provider.of<CarritoProvider>(context, listen: false).agregarProducto({
+                'id': widget.producto.id, 'nombre': widget.producto.nombre,
+                'precio': widget.producto.precio, 'categoria': widget.producto.categoria,
+                'icono': widget.producto.icono, 'cantidad': _cantidad,
+                if (_tamanoSel != null) 'opcionesSeleccionadas': {'tamano': _tamanoSel},
+                if (_notasCtrl.text.isNotEmpty) 'notasEspeciales': _notasCtrl.text,
                 'opcionesKey': '${widget.producto.id}_$_tamanoSel',
               });
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
               messenger.showSnackBar(SnackBar(
-                content: Text(
-                    '${widget.producto.icono} ${widget.producto.nombre} x$_cantidad agregado'),
-                backgroundColor:
-                    _colorDeCat(widget.producto.categoria),
+                content: Text('${widget.producto.icono} ${widget.producto.nombre} x$_cantidad agregado'),
+                backgroundColor: _colorDeCat(widget.producto.categoria),
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
               ));
             },
             child: Container(
               height: 58,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [color, color.withOpacity(0.75)]),
+                gradient: LinearGradient(colors: [color, color.withOpacity(0.75)]),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(
-                    color: color.withOpacity(0.35),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6))],
+                boxShadow: [BoxShadow(color: color.withOpacity(0.35),
+                    blurRadius: 18, offset: const Offset(0, 6))],
               ),
-              child: Center(
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                  const Icon(Icons.shopping_cart_outlined,
-                      color: Colors.white, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                      'Agregar  •  \$${_precioFinal.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800)),
-                ]),
-              ),
+              child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Text('Agregar  •  \$${_precioFinal.toStringAsFixed(2)}',
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 16, fontWeight: FontWeight.w800)),
+              ])),
             ),
           ),
         ]),
@@ -868,39 +825,25 @@ class _DetalleSheetState extends State<_DetalleSheet> {
   }
 
   Widget _labelSeccion(String texto) => Text(texto,
-      style: TextStyle(
-          color: Colors.white.withOpacity(0.5),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2));
+      style: TextStyle(color: Colors.white.withOpacity(0.5),
+          fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2));
 }
 
 class _BtnCantidad extends StatelessWidget {
-  final IconData icono;
-  final Color color;
-  final VoidCallback? onTap;
-  const _BtnCantidad(
-      {required this.icono, required this.color, this.onTap});
-
+  final IconData icono; final Color color; final VoidCallback? onTap;
+  const _BtnCantidad({required this.icono, required this.color, this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
       width: 36, height: 36,
       decoration: BoxDecoration(
-        color: onTap != null
-            ? color.withOpacity(0.14)
-            : Colors.white.withOpacity(0.03),
+        color: onTap != null ? color.withOpacity(0.14) : Colors.white.withOpacity(0.03),
         borderRadius: BorderRadius.circular(9),
         border: Border.all(
-            color: onTap != null
-                ? color.withOpacity(0.45)
-                : Colors.white.withOpacity(0.05))),
+            color: onTap != null ? color.withOpacity(0.45) : Colors.white.withOpacity(0.05))),
       child: Icon(icono,
-          color: onTap != null
-              ? color
-              : Colors.white.withOpacity(0.12),
-          size: 18),
+          color: onTap != null ? color : Colors.white.withOpacity(0.15), size: 18),
     ),
   );
 }
