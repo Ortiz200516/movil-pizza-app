@@ -64,4 +64,33 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+    
+    <queries>
+    <!-- Llamadas -->
+    <intent>
+        <action android:name="android.intent.action.DIAL"/>
+        <data android:scheme="tel"/>
+    </intent>
+    <!-- Google Maps / navegación -->
+    <intent>
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="geo"/>
+    </intent>
+    <!-- Maps web / https -->
+    <intent>
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="https"/>
+    </intent>
+    <!-- WhatsApp -->
+    <intent>
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="https"/>
+        <data android:host="wa.me"/>
+    </intent>
+    <!-- Waze -->
+    <intent>
+        <action android:name="android.intent.action.VIEW"/>
+        <data android:scheme="waze"/>
+    </intent>
+</queries>
 </manifest>

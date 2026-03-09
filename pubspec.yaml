@@ -24,6 +24,7 @@ dependencies:
   # Maps
   google_maps_flutter:      ^2.9.0
   google_maps_flutter_web:  ^0.5.10
+  url_launcher: ^6.3.0
 
   # Estado
   provider:                 ^6.1.2
