@@ -1,9 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../services/notificacion_service.dart';
+
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
 
   /// 🔐 LOGIN Y DEVUELVE EL ROL DEL USUARIO
   Future<String> login(String email, String password) async {
@@ -16,16 +19,18 @@ class AuthService {
       final uid = cred.user!.uid;
 
       final doc = await _db.collection('users').doc(uid).get();
-
       if (!doc.exists) {
         throw Exception('Usuario sin rol asignado en Firestore');
       }
+      
+      await NotificacionService().guardarToken(uid);
 
       return doc['rol'] as String;
     } catch (e) {
       throw Exception('Error al iniciar sesión: $e');
     }
   }
+
 
   /// 📝 REGISTRO DE USUARIO CON CÉDULA Y PAÍS
   Future<void> register({

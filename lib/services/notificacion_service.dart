@@ -1,26 +1,108 @@
+import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler background (DEBE estar fuera de cualquier clase, a nivel top-level)
+// ─────────────────────────────────────────────────────────────────────────────
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Firebase ya está inicializado por el sistema en background
+  // Solo necesitamos manejar el mensaje
+  final titulo = message.notification?.title ?? message.data['titulo'] ?? '';
+  final cuerpo = message.notification?.body  ?? message.data['cuerpo'] ?? '';
+  if (titulo.isEmpty) return;
+
+  // Mostrar notificación local cuando la app está en background/terminada
+  final plugin = FlutterLocalNotificationsPlugin();
+  const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+  await plugin.initialize(const InitializationSettings(android: android));
+  await plugin.show(
+    message.hashCode,
+    titulo,
+    cuerpo,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        'la_italiana_channel', 'La Italiana',
+        channelDescription: 'Notificaciones de pedidos',
+        importance: Importance.max,
+        priority: Priority.high,
+        color: const Color(0xFFFF6B00),
+        icon: '@mipmap/ic_launcher',
+      ),
+    ),
+    payload: message.data['pedidoId'],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NotificacionService — Singleton
+// ─────────────────────────────────────────────────────────────────────────────
 class NotificacionService {
   static final NotificacionService _i = NotificacionService._();
   factory NotificacionService() => _i;
   NotificacionService._();
 
-  final _fcm = FirebaseMessaging.instance;
-  final _db  = FirebaseFirestore.instance;
+  final _fcm    = FirebaseMessaging.instance;
+  final _db     = FirebaseFirestore.instance;
+  final _plugin = FlutterLocalNotificationsPlugin();
 
-  static void Function(String titulo, String cuerpo, {String? tipo})? onMensaje;
+  // Callback para mostrar banner en foreground
+  static void Function(String titulo, String cuerpo, {String? tipo, String? pedidoId})? onMensaje;
 
+  // Callback para navegar al abrir notificación
+  static void Function(String? pedidoId)? onAbrir;
+
+  // ── Inicializar (llamar en main.dart ANTES de runApp) ──────────────────────
   Future<void> inicializar() async {
-    try {
-      final settings = await _fcm.requestPermission(
-          alert: true, badge: true, sound: true);
-      if (settings.authorizationStatus != AuthorizationStatus.authorized) return;
-      FirebaseMessaging.onMessage.listen(_manejarMensaje);
-    } catch (_) {}
+    // 1. Handler background
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    // 2. Permisos
+    final settings = await _fcm.requestPermission(
+      alert: true, badge: true, sound: true,
+      provisional: false,
+    );
+    if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+
+    // 3. Canal Android
+    await _plugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+      onDidReceiveNotificationResponse: (details) {
+        // Usuario toca notificación local (background/terminated)
+        onAbrir?.call(details.payload);
+      },
+    );
+    await _crearCanalAndroid();
+
+    // 4. Foreground: mostrar banner custom
+    FirebaseMessaging.onMessage.listen(_manejarForeground);
+
+    // 5. App abierta desde notificación (background → foreground)
+    FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+      onAbrir?.call(msg.data['pedidoId']);
+    });
+
+    // 6. App abierta desde terminada
+    final initial = await _fcm.getInitialMessage();
+    if (initial != null) {
+      // Pequeño delay para que la navegación funcione
+      Future.delayed(const Duration(milliseconds: 500), () {
+        onAbrir?.call(initial.data['pedidoId']);
+      });
+    }
+
+    // 7. Notificaciones en foreground (mostrar como heads-up)
+    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+      alert: true, badge: true, sound: true,
+    );
   }
 
+  // ── Guardar token FCM del usuario ──────────────────────────────────────────
   Future<void> guardarToken(String uid) async {
     try {
       final token = await _fcm.getToken();
@@ -28,6 +110,67 @@ class NotificacionService {
       await _db.collection('users').doc(uid).update({
         'fcmToken': token,
         'fcmTokenActualizadoEn': FieldValue.serverTimestamp(),
+      });
+
+      // Escuchar refresh del token
+      _fcm.onTokenRefresh.listen((nuevoToken) async {
+        try {
+          await _db.collection('users').doc(uid).update({
+            'fcmToken': nuevoToken,
+            'fcmTokenActualizadoEn': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  // ── Manejar mensaje en foreground ──────────────────────────────────────────
+  void _manejarForeground(RemoteMessage msg) {
+    final titulo   = msg.notification?.title ?? msg.data['titulo'] ?? '';
+    final cuerpo   = msg.notification?.body  ?? msg.data['cuerpo'] ?? '';
+    final tipo     = msg.data['tipo'] as String?;
+    final pedidoId = msg.data['pedidoId'] as String?;
+    if (titulo.isEmpty) return;
+    onMensaje?.call(titulo, cuerpo, tipo: tipo, pedidoId: pedidoId);
+  }
+
+  // ── Canal de notificaciones Android ───────────────────────────────────────
+  Future<void> _crearCanalAndroid() async {
+    const canal = AndroidNotificationChannel(
+      'la_italiana_channel',
+      'La Italiana',
+      description: 'Notificaciones de pedidos y entregas',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      ledColor: Color(0xFFFF6B00),
+    );
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(canal);
+  }
+
+  // ── Crear notificación en Firestore (la Cloud Function la envía) ───────────
+  static Future<void> notificarUsuario({
+    required String uid,
+    required String titulo,
+    required String cuerpo,
+    String tipo = 'info',
+    String? pedidoId,
+    Map<String, dynamic>? datos,
+  }) async {
+    try {
+      await FirebaseFirestore.instance.collection('notificaciones').add({
+        'uid': uid,
+        'titulo': titulo,
+        'cuerpo': cuerpo,
+        'tipo': tipo,
+        'pedidoId': pedidoId,
+        'datos': datos ?? {},
+        'creadoEn': FieldValue.serverTimestamp(),
+        'leida': false,
+        'enviada': false, // la Cloud Function cambia esto a true
       });
     } catch (_) {}
   }
@@ -37,70 +180,57 @@ class NotificacionService {
     required String titulo,
     required String cuerpo,
     String tipo = 'info',
+    String? pedidoId,
     Map<String, dynamic>? datos,
   }) async {
     try {
       await FirebaseFirestore.instance.collection('notificaciones').add({
-        'rol': rol, 'titulo': titulo, 'cuerpo': cuerpo,
-        'tipo': tipo, 'datos': datos ?? {},
-        'creadoEn': FieldValue.serverTimestamp(), 'leida': false,
+        'rol': rol,
+        'titulo': titulo,
+        'cuerpo': cuerpo,
+        'tipo': tipo,
+        'pedidoId': pedidoId,
+        'datos': datos ?? {},
+        'creadoEn': FieldValue.serverTimestamp(),
+        'leida': false,
+        'enviada': false,
       });
     } catch (_) {}
-  }
-
-  static Future<void> notificarUsuario({
-    required String uid,
-    required String titulo,
-    required String cuerpo,
-    String tipo = 'info',
-    Map<String, dynamic>? datos,
-  }) async {
-    try {
-      await FirebaseFirestore.instance.collection('notificaciones').add({
-        'uid': uid, 'titulo': titulo, 'cuerpo': cuerpo,
-        'tipo': tipo, 'datos': datos ?? {},
-        'creadoEn': FieldValue.serverTimestamp(), 'leida': false,
-      });
-    } catch (_) {}
-  }
-
-  void _manejarMensaje(RemoteMessage msg) {
-    final titulo = msg.notification?.title ?? msg.data['titulo'] ?? '';
-    final cuerpo = msg.notification?.body  ?? msg.data['cuerpo'] ?? '';
-    onMensaje?.call(titulo, cuerpo, tipo: msg.data['tipo']);
   }
 }
 
-// ── Stream badge sin índice compuesto ─────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Stream de notificaciones sin leer
+// ─────────────────────────────────────────────────────────────────────────────
 Stream<int> streamNotificacionesSinLeer(String uid, String rol) {
-  // Sin .where('leida') para evitar requerir índice compuesto.
-  // Filtramos en memoria.
   return FirebaseFirestore.instance
       .collection('notificaciones')
       .orderBy('creadoEn', descending: true)
       .limit(50)
       .snapshots()
       .map((snap) => snap.docs.where((d) {
-            final data = d.data();
+            final data  = d.data();
             final leida = data['leida'] as bool? ?? false;
             if (leida) return false;
             return data['uid'] == uid || data['rol'] == rol;
           }).length);
 }
 
-// ── Banner de notificación ────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Banner in-app (foreground)
+// ─────────────────────────────────────────────────────────────────────────────
 class NotificacionBanner extends StatefulWidget {
   final Widget child;
   const NotificacionBanner({super.key, required this.child});
-  @override
-  State<NotificacionBanner> createState() => _NotificacionBannerState();
+  @override State<NotificacionBanner> createState() => _NotificacionBannerState();
 }
 
 class _NotificacionBannerState extends State<NotificacionBanner>
     with SingleTickerProviderStateMixin {
   String? _titulo;
   String? _cuerpo;
-  String  _tipo = 'info';
+  String  _tipo     = 'info';
+  String? _pedidoId;
   late AnimationController _ctrl;
   late Animation<Offset>   _slide;
 
@@ -109,18 +239,24 @@ class _NotificacionBannerState extends State<NotificacionBanner>
     super.initState();
     _ctrl  = AnimationController(vsync: this,
         duration: const Duration(milliseconds: 350));
-    _slide = Tween<Offset>(begin: const Offset(0, -1.5), end: Offset.zero)
+    _slide = Tween<Offset>(
+        begin: const Offset(0, -1.5), end: Offset.zero)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
 
-    NotificacionService.onMensaje = (titulo, cuerpo, {tipo}) {
+    NotificacionService.onMensaje = (titulo, cuerpo, {tipo, pedidoId}) {
       if (!mounted) return;
-      setState(() { _titulo = titulo; _cuerpo = cuerpo; _tipo = tipo ?? 'info'; });
+      setState(() {
+        _titulo   = titulo;
+        _cuerpo   = cuerpo;
+        _tipo     = tipo ?? 'info';
+        _pedidoId = pedidoId;
+      });
       _ctrl.forward();
       Future.delayed(const Duration(seconds: 4), () {
         if (mounted) {
           _ctrl.reverse().then((_) {
-          if (mounted) setState(() { _titulo = null; _cuerpo = null; });
-        });
+            if (mounted) setState(() { _titulo = null; _cuerpo = null; });
+          });
         }
       });
     };
@@ -129,25 +265,29 @@ class _NotificacionBannerState extends State<NotificacionBanner>
   @override
   void dispose() { _ctrl.dispose(); super.dispose(); }
 
+  void _cerrar() => _ctrl.reverse().then((_) {
+    if (mounted) setState(() { _titulo = null; _cuerpo = null; });
+  });
+
   Color get _color {
     switch (_tipo) {
-      case 'pedido':    return const Color(0xFFFF6B00);
-      case 'listo':     return Colors.green.shade600;
-      case 'camino':    return Colors.indigo.shade600;
+      case 'pedido':     return const Color(0xFFFF6B00);
+      case 'listo':      return Colors.green.shade600;
+      case 'camino':     return Colors.indigo.shade600;
       case 'preparando': return Colors.blue.shade600;
-      case 'cancelado': return Colors.red.shade600;
-      default:          return const Color(0xFF334155);
+      case 'cancelado':  return Colors.red.shade600;
+      default:           return const Color(0xFF334155);
     }
   }
 
   String get _emoji {
     switch (_tipo) {
-      case 'pedido':    return '🍕';
-      case 'listo':     return '✅';
-      case 'camino':    return '🛵';
+      case 'pedido':     return '🍕';
+      case 'listo':      return '✅';
+      case 'camino':     return '🛵';
       case 'preparando': return '👨‍🍳';
-      case 'cancelado': return '❌';
-      default:          return '🔔';
+      case 'cancelado':  return '❌';
+      default:           return '🔔';
     }
   }
 
@@ -169,15 +309,18 @@ class _NotificacionBannerState extends State<NotificacionBanner>
                   borderRadius: BorderRadius.circular(16),
                   shadowColor: _color.withOpacity(0.4),
                   child: GestureDetector(
-                    onTap: () => _ctrl.reverse().then((_) {
-                      if (mounted) setState(() { _titulo = null; _cuerpo = null; });
-                    }),
+                    onTap: () {
+                      _cerrar();
+                      if (_pedidoId != null) {
+                        NotificacionService.onAbrir?.call(_pedidoId);
+                      }
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [
-                          _color, _color.withOpacity(0.8)]),
+                        gradient: LinearGradient(
+                            colors: [_color, _color.withOpacity(0.85)]),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                             color: Colors.white.withOpacity(0.15)),
@@ -195,19 +338,25 @@ class _NotificacionBannerState extends State<NotificacionBanner>
                         const SizedBox(width: 12),
                         Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min, children: [
-                          Text(_titulo!, style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold, fontSize: 14)),
-                          if (_cuerpo?.isNotEmpty == true)
-                            Text(_cuerpo!, maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 12)),
-                        ])),
-                        Icon(Icons.close, color: Colors.white.withOpacity(0.6),
-                            size: 16),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_titulo!, style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold, fontSize: 14)),
+                            if (_cuerpo?.isNotEmpty == true)
+                              Text(_cuerpo!, maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      color: Colors.white.withOpacity(0.85),
+                                      fontSize: 12)),
+                          ],
+                        )),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _cerrar,
+                          child: Icon(Icons.close,
+                              color: Colors.white.withOpacity(0.6), size: 16),
+                        ),
                       ]),
                     ),
                   ),
@@ -220,18 +369,18 @@ class _NotificacionBannerState extends State<NotificacionBanner>
   }
 }
 
-// ── Badge de notificaciones con animación ─────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Badge animado en AppBar
+// ─────────────────────────────────────────────────────────────────────────────
 class NotifBadgeBtn extends StatefulWidget {
   final String uid, rol;
   const NotifBadgeBtn({super.key, required this.uid, required this.rol});
-  @override
-  State<NotifBadgeBtn> createState() => _NotifBadgeBtnState();
+  @override State<NotifBadgeBtn> createState() => _NotifBadgeBtnState();
 }
 
 class _NotifBadgeBtnState extends State<NotifBadgeBtn>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
-  final int _prevCount = 0;
 
   @override
   void initState() {
@@ -250,12 +399,8 @@ class _NotifBadgeBtnState extends State<NotifBadgeBtn>
       stream: streamNotificacionesSinLeer(widget.uid, widget.rol),
       builder: (context, snap) {
         final count = snap.data ?? 0;
-        // Detener pulso si no hay notifs
-        if (count == 0) {
-          _pulse.stop();
-        } else if (!_pulse.isAnimating) {
-          _pulse.repeat(reverse: true);
-        }
+        if (count == 0) { _pulse.stop(); }
+        else if (!_pulse.isAnimating) { _pulse.repeat(reverse: true); }
 
         return Stack(children: [
           IconButton(
@@ -267,9 +412,7 @@ class _NotifBadgeBtnState extends State<NotifBadgeBtn>
               ),
               child: Icon(
                 count > 0 ? Icons.notifications : Icons.notifications_outlined,
-                color: count > 0
-                    ? const Color(0xFFFF6B00)
-                    : Colors.white38,
+                color: count > 0 ? const Color(0xFFFF6B00) : Colors.white38,
                 size: 24,
               ),
             ),
@@ -285,15 +428,18 @@ class _NotifBadgeBtnState extends State<NotifBadgeBtn>
                   decoration: BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF0F172A), width: 1.5),
+                    border: Border.all(
+                        color: const Color(0xFF0F172A), width: 1.5),
                     boxShadow: [BoxShadow(
-                        color: Colors.red.withOpacity(0.4 + _pulse.value * 0.3),
+                        color: Colors.red.withOpacity(
+                            0.4 + _pulse.value * 0.3),
                         blurRadius: 6, spreadRadius: 1)],
                   ),
                   child: Center(child: Text(
                     count > 9 ? '9+' : '$count',
-                    style: const TextStyle(color: Colors.white,
-                        fontSize: 8, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 9,
+                        fontWeight: FontWeight.bold),
                   )),
                 ),
               ),
@@ -306,17 +452,161 @@ class _NotifBadgeBtnState extends State<NotifBadgeBtn>
   void _mostrarNotificaciones(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF1E293B),
       isScrollControlled: true,
-      builder: (_) => _NotifSheet(uid: widget.uid, rol: widget.rol),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _PanelNotificaciones(uid: widget.uid, rol: widget.rol),
     );
   }
 }
 
-// ── Sheet de notificaciones ───────────────────────────────────
-class _NotifSheet extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Panel de notificaciones
+// ─────────────────────────────────────────────────────────────────────────────
+class _PanelNotificaciones extends StatelessWidget {
   final String uid, rol;
-  const _NotifSheet({required this.uid, required this.rol});
+  const _PanelNotificaciones({required this.uid, required this.rol});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      builder: (_, ctrl) => Column(children: [
+        // Handle
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: Colors.white12,
+                  borderRadius: BorderRadius.circular(2))),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+          child: Row(children: [
+            const Text('🔔 Notificaciones', style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const Spacer(),
+            TextButton(
+              onPressed: () => _marcarTodasLeidas(),
+              child: const Text('Marcar todas',
+                  style: TextStyle(color: Color(0xFFFF6B00), fontSize: 12)),
+            ),
+          ]),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('notificaciones')
+                .orderBy('creadoEn', descending: true)
+                .limit(30)
+                .snapshots(),
+            builder: (context, snap) {
+              if (!snap.hasData) return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFFF6B00)));
+
+              final docs = snap.data!.docs.where((d) {
+                final data = d.data() as Map<String, dynamic>;
+                return data['uid'] == uid || data['rol'] == rol;
+              }).toList();
+
+              if (docs.isEmpty) return const Center(child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('🔕', style: TextStyle(fontSize: 48)),
+                  SizedBox(height: 10),
+                  Text('Sin notificaciones', style: TextStyle(
+                      color: Colors.white38, fontSize: 14)),
+                ],
+              ));
+
+              return ListView.builder(
+                controller: ctrl,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: docs.length,
+                itemBuilder: (_, i) {
+                  final doc  = docs[i];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final leida = data['leida'] as bool? ?? false;
+                  final tipo  = data['tipo'] as String? ?? 'info';
+                  final ts    = (data['creadoEn'] as Timestamp?)?.toDate();
+
+                  return GestureDetector(
+                    onTap: () {
+                      // Marcar como leída
+                      doc.reference.update({'leida': true});
+                      final pedidoId = data['pedidoId'] as String?;
+                      if (pedidoId != null) {
+                        Navigator.pop(context);
+                        NotificacionService.onAbrir?.call(pedidoId);
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: leida
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFF263348),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: leida
+                              ? Colors.white.withOpacity(0.04)
+                              : const Color(0xFFFF6B00).withOpacity(0.25),
+                        ),
+                      ),
+                      child: Row(children: [
+                        Container(
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(
+                            color: _colorTipo(tipo).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(child: Text(
+                              _emojiTipo(tipo),
+                              style: const TextStyle(fontSize: 18))),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(data['titulo'] ?? '',
+                                style: TextStyle(
+                                    color: leida ? Colors.white54 : Colors.white,
+                                    fontWeight: leida
+                                        ? FontWeight.normal : FontWeight.bold,
+                                    fontSize: 13)),
+                            if ((data['cuerpo'] as String? ?? '').isNotEmpty)
+                              Text(data['cuerpo'],
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white38, fontSize: 11)),
+                            if (ts != null)
+                              Text(_formatTs(ts),
+                                  style: const TextStyle(
+                                      color: Colors.white24, fontSize: 10)),
+                          ],
+                        )),
+                        if (!leida)
+                          Container(width: 8, height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF6B00),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ]),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
 
   Color _colorTipo(String tipo) {
     switch (tipo) {
@@ -325,7 +615,7 @@ class _NotifSheet extends StatelessWidget {
       case 'camino':     return Colors.indigo;
       case 'preparando': return Colors.blue;
       case 'cancelado':  return Colors.red;
-      default:           return Colors.blueGrey;
+      default:           return Colors.grey;
     }
   }
 
@@ -340,210 +630,23 @@ class _NotifSheet extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      maxChildSize: 0.9,
-      minChildSize: 0.3,
-      builder: (context, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E293B),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(children: [
-          // Handle
-          Center(child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 36, height: 4,
-            decoration: BoxDecoration(color: Colors.white12,
-                borderRadius: BorderRadius.circular(2)),
-          )),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 8, 12),
-            child: Row(children: [
-              const Text('🔔', style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 10),
-              const Text('Notificaciones', style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _marcarTodasLeidas(uid, rol),
-                icon: const Icon(Icons.done_all, size: 16, color: Colors.white38),
-                label: const Text('Limpiar',
-                    style: TextStyle(color: Colors.white38, fontSize: 12)),
-              ),
-            ]),
-          ),
-          const Divider(color: Colors.white10, height: 1),
-
-          // Lista
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('notificaciones')
-                  .orderBy('creadoEn', descending: true)
-                  .limit(40)
-                  .snapshots(),
-              builder: (context, snap) {
-                if (!snap.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFF6B00)));
-                }
-
-                final docs = snap.data!.docs.where((d) {
-                  final data = d.data() as Map<String, dynamic>;
-                  return data['uid'] == uid || data['rol'] == rol;
-                }).toList();
-
-                if (docs.isEmpty) {
-                  return Center(child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Text('🔕', style: TextStyle(fontSize: 48)),
-                    const SizedBox(height: 14),
-                    const Text('Sin notificaciones',
-                        style: TextStyle(color: Colors.white38,
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 6),
-                    Text('Aquí verás actualizaciones de tus pedidos',
-                        style: TextStyle(color: Colors.white24, fontSize: 13)),
-                  ]));
-                }
-
-                return ListView.builder(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
-                    final d     = docs[i].data() as Map<String, dynamic>;
-                    final leida = d['leida'] as bool? ?? false;
-                    final tipo  = d['tipo'] as String? ?? 'info';
-                    final color = _colorTipo(tipo);
-                    final emoji = _emojiTipo(tipo);
-
-                    // Formatear hora
-                    String hora = '';
-                    final ts = d['creadoEn'];
-                    if (ts != null) {
-                      try {
-                        final dt = (ts as Timestamp).toDate();
-                        final ahora = DateTime.now();
-                        final diff  = ahora.difference(dt);
-                        if (diff.inMinutes < 1) {
-                          hora = 'Ahora';
-                        } else if (diff.inHours < 1) {
-                          hora = 'Hace ${diff.inMinutes}m';
-                        } else if (diff.inHours < 24) {
-                          hora = 'Hace ${diff.inHours}h';
-                        } else {
-                          hora = '${dt.day}/${dt.month}';
-                        }
-                      } catch (_) {}
-                    }
-
-                    return Dismissible(
-                      key: Key(docs[i].id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 16),
-                        color: Colors.red.withOpacity(0.2),
-                        child: const Icon(Icons.delete_outline,
-                            color: Colors.red),
-                      ),
-                      onDismissed: (_) => docs[i].reference.delete(),
-                      child: InkWell(
-                        onTap: () {
-                          if (!leida) {
-                            docs[i].reference.update({'leida': true});
-                          }
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: leida
-                                ? Colors.white.withOpacity(0.02)
-                                : color.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: leida
-                                  ? Colors.white.withOpacity(0.04)
-                                  : color.withOpacity(0.25)),
-                          ),
-                          child: Row(children: [
-                            Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(child: Text(emoji,
-                                  style: const TextStyle(fontSize: 18))),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(d['titulo'] ?? '', style: TextStyle(
-                                  color: leida ? Colors.white38 : Colors.white,
-                                  fontWeight: leida
-                                      ? FontWeight.normal : FontWeight.bold,
-                                  fontSize: 13,
-                                )),
-                                if ((d['cuerpo'] ?? '').toString().isNotEmpty)
-                                  Text(d['cuerpo'].toString(),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          color: leida
-                                              ? Colors.white24 : Colors.white54,
-                                          fontSize: 12)),
-                              ],
-                            )),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(hora, style: const TextStyle(
-                                    color: Colors.white24, fontSize: 10)),
-                                if (!leida) ...[
-                                  const SizedBox(height: 6),
-                                  Container(width: 8, height: 8,
-                                      decoration: BoxDecoration(
-                                          color: color, shape: BoxShape.circle)),
-                                ],
-                              ],
-                            ),
-                          ]),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ]),
-      ),
-    );
+  String _formatTs(DateTime ts) {
+    final diff = DateTime.now().difference(ts);
+    if (diff.inMinutes < 1) return 'Ahora';
+    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Hace ${diff.inHours}h';
+    return '${ts.day}/${ts.month}/${ts.year}';
   }
 
-  Future<void> _marcarTodasLeidas(String uid, String rol) async {
+  Future<void> _marcarTodasLeidas() async {
     final snap = await FirebaseFirestore.instance
         .collection('notificaciones')
-        .orderBy('creadoEn', descending: true)
-        .limit(50)
+        .where('leida', isEqualTo: false)
         .get();
     final batch = FirebaseFirestore.instance.batch();
     for (final doc in snap.docs) {
-      final d = doc.data();
-      if ((d['uid'] == uid || d['rol'] == rol) &&
-          !(d['leida'] as bool? ?? false)) {
+      final data = doc.data();
+      if (data['uid'] == uid || data['rol'] == rol) {
         batch.update(doc.reference, {'leida': true});
       }
     }

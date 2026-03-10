@@ -27,6 +27,8 @@ void main() async {
     await ProductoService().inicializarProductosEjemplo();
   } catch (_) {}
 
+  await NotificacionService().inicializar(); // ← AGREGAR ESTA LÍNEA
+
   runApp(const MyApp());
 }
 

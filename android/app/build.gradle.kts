@@ -59,6 +59,12 @@ android {
     }
 }
 
+android {
+    defaultConfig {
+        minSdkVersion 21   // geolocator requiere >= 21
+    }
+}
+
 flutter {
     source = "../.."
 }

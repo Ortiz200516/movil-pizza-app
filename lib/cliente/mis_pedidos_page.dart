@@ -104,8 +104,7 @@ class _TabEnProceso extends StatelessWidget {
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Text('¡Todo entregado!',
-                    style:
-                        TextStyle(color: Colors.white.withOpacity(0.25))),
+                    style: TextStyle(color: Colors.white.withOpacity(0.25))),
               ]));
         }
 
@@ -129,14 +128,24 @@ class _TabHistorial extends StatefulWidget {
 }
 
 class _TabHistorialState extends State<_TabHistorial> {
-  String _filtro   = 'Todos';
+  String _filtro = 'Todos';
   String _busqueda = '';
-  int?   _mesFiltro; // null = todos los meses
+  int? _mesFiltro; // null = todos los meses
   final _searchCtrl = TextEditingController();
 
   static const _meses = [
-    'Ene','Feb','Mar','Abr','May','Jun',
-    'Jul','Ago','Sep','Oct','Nov','Dic'
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic'
   ];
 
   @override
@@ -176,18 +185,15 @@ class _TabHistorialState extends State<_TabHistorial> {
 
         // Aplicar filtros
         var pedidos = todosPedidos.where((p) {
-          final matchEstado =
-              _filtro == 'Todos' || p.estado == _filtro;
-          final matchMes =
-              _mesFiltro == null || p.fecha.month == _mesFiltro;
+          final matchEstado = _filtro == 'Todos' || p.estado == _filtro;
+          final matchMes = _mesFiltro == null || p.fecha.month == _mesFiltro;
           final matchBusqueda = _busqueda.isEmpty ||
               p.items.any((item) =>
                   (item['productoNombre'] ?? item['nombre'] ?? '')
                       .toString()
                       .toLowerCase()
                       .contains(_busqueda.toLowerCase())) ||
-              (p.codigoVerificacion ?? '')
-                  .contains(_busqueda);
+              (p.codigoVerificacion ?? '').contains(_busqueda);
           return matchEstado && matchMes && matchBusqueda;
         }).toList();
 
@@ -221,8 +227,8 @@ class _TabHistorialState extends State<_TabHistorial> {
               decoration: InputDecoration(
                 hintText: 'Buscar por producto o código...',
                 hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-                prefixIcon: const Icon(Icons.search,
-                    color: Colors.white38, size: 20),
+                prefixIcon:
+                    const Icon(Icons.search, color: Colors.white38, size: 20),
                 suffixIcon: _busqueda.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.close,
@@ -240,12 +246,12 @@ class _TabHistorialState extends State<_TabHistorial> {
                     borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                        color: Colors.white.withOpacity(0.08))),
+                    borderSide:
+                        BorderSide(color: Colors.white.withOpacity(0.08))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: Color(0xFFFF6B35), width: 1.5)),
+                    borderSide:
+                        const BorderSide(color: Color(0xFFFF6B35), width: 1.5)),
               ),
             ),
           ),
@@ -283,9 +289,8 @@ class _TabHistorialState extends State<_TabHistorial> {
                       child: Text(f,
                           style: TextStyle(
                             color: sel ? color : Colors.white38,
-                            fontWeight: sel
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                            fontWeight:
+                                sel ? FontWeight.bold : FontWeight.normal,
                             fontSize: 12,
                           )),
                     ),
@@ -311,8 +316,8 @@ class _TabHistorialState extends State<_TabHistorial> {
                     return _ChipMes(
                       label: _meses[i],
                       seleccionado: _mesFiltro == mes,
-                      onTap: () => setState(() =>
-                          _mesFiltro = _mesFiltro == mes ? null : mes),
+                      onTap: () => setState(
+                          () => _mesFiltro = _mesFiltro == mes ? null : mes),
                     );
                   }),
                 ],
@@ -329,22 +334,20 @@ class _TabHistorialState extends State<_TabHistorial> {
                     child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                      const Text('📋',
-                          style: TextStyle(fontSize: 52)),
-                      const SizedBox(height: 12),
-                      Text(
-                          _busqueda.isNotEmpty
-                              ? 'Sin resultados para "$_busqueda"'
-                              : 'Sin historial aún',
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 15)),
-                    ]))
+                        const Text('📋', style: TextStyle(fontSize: 52)),
+                        const SizedBox(height: 12),
+                        Text(
+                            _busqueda.isNotEmpty
+                                ? 'Sin resultados para "$_busqueda"'
+                                : 'Sin historial aún',
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 15)),
+                      ]))
                 : ListView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(14, 4, 14, 20),
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
                     itemCount: pedidos.length,
-                    itemBuilder: (_, i) => _TarjetaPedido(
-                        pedido: pedidos[i], enProceso: false),
+                    itemBuilder: (_, i) =>
+                        _TarjetaPedido(pedido: pedidos[i], enProceso: false),
                   ),
           ),
         ]);
@@ -365,9 +368,7 @@ class _ChipMes extends StatelessWidget {
   final bool seleccionado;
   final VoidCallback onTap;
   const _ChipMes(
-      {required this.label,
-      required this.seleccionado,
-      required this.onTap});
+      {required this.label, required this.seleccionado, required this.onTap});
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -375,8 +376,7 @@ class _ChipMes extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           margin: const EdgeInsets.only(right: 6),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
             color: seleccionado
                 ? Colors.blue.withOpacity(0.2)
@@ -391,9 +391,8 @@ class _ChipMes extends StatelessWidget {
               style: TextStyle(
                   color: seleccionado ? Colors.blue : Colors.white38,
                   fontSize: 11,
-                  fontWeight: seleccionado
-                      ? FontWeight.bold
-                      : FontWeight.normal)),
+                  fontWeight:
+                      seleccionado ? FontWeight.bold : FontWeight.normal)),
         ),
       );
 }
@@ -409,12 +408,9 @@ class _StatItem extends StatelessWidget {
           const SizedBox(height: 3),
           Text(valor,
               style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14)),
+                  color: color, fontWeight: FontWeight.bold, fontSize: 14)),
           Text(label,
-              style: const TextStyle(
-                  color: Colors.white38, fontSize: 10)),
+              style: const TextStyle(color: Colors.white38, fontSize: 10)),
         ]),
       );
 }
@@ -423,8 +419,7 @@ class _StatItem extends StatelessWidget {
 class _TarjetaPedido extends StatefulWidget {
   final PedidoModel pedido;
   final bool enProceso;
-  const _TarjetaPedido(
-      {required this.pedido, required this.enProceso});
+  const _TarjetaPedido({required this.pedido, required this.enProceso});
   @override
   State<_TarjetaPedido> createState() => _TarjetaPedidoState();
 }
@@ -434,43 +429,54 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
 
   Color get _colorEstado {
     switch (widget.pedido.estado) {
-      case 'Pendiente':  return Colors.orange;
-      case 'Preparando': return Colors.blue;
-      case 'Listo':      return Colors.teal;
-      case 'En camino':  return Colors.indigo;
-      case 'Entregado':  return Colors.green;
-      case 'Cancelado':  return Colors.red;
-      default:           return Colors.grey;
+      case 'Pendiente':
+        return Colors.orange;
+      case 'Preparando':
+        return Colors.blue;
+      case 'Listo':
+        return Colors.teal;
+      case 'En camino':
+        return Colors.indigo;
+      case 'Entregado':
+        return Colors.green;
+      case 'Cancelado':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
   String get _emojiEstado {
     switch (widget.pedido.estado) {
-      case 'Pendiente':  return '⏳';
-      case 'Preparando': return '👨‍🍳';
-      case 'Listo':      return '✅';
-      case 'En camino':  return '🛵';
-      case 'Entregado':  return '📦';
-      case 'Cancelado':  return '❌';
-      default:           return '📋';
+      case 'Pendiente':
+        return '⏳';
+      case 'Preparando':
+        return '👨‍🍳';
+      case 'Listo':
+        return '✅';
+      case 'En camino':
+        return '🛵';
+      case 'Entregado':
+        return '📦';
+      case 'Cancelado':
+        return '❌';
+      default:
+        return '📋';
     }
   }
 
   // ── Repetir pedido ──
   Future<void> _repetirPedido(BuildContext context) async {
-    final carrito =
-        Provider.of<CarritoProvider>(context, listen: false);
+    final carrito = Provider.of<CarritoProvider>(context, listen: false);
     final p = widget.pedido;
 
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('🔁 Repetir pedido',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text(
           'Se agregarán ${p.items.length} producto(s) al carrito.\n¿Continuar?',
           style: const TextStyle(color: Colors.white70),
@@ -505,8 +511,8 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              '🛒 ${p.items.length} producto(s) agregados al carrito'),
+          content:
+              Text('🛒 ${p.items.length} producto(s) agregados al carrito'),
           backgroundColor: Colors.green,
           action: SnackBarAction(
             label: 'Ver carrito',
@@ -520,7 +526,7 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
 
   @override
   Widget build(BuildContext context) {
-    final p     = widget.pedido;
+    final p = widget.pedido;
     final color = _colorEstado;
     final fecha =
         '${p.fecha.day.toString().padLeft(2, '0')}/${p.fecha.month.toString().padLeft(2, '0')} '
@@ -542,7 +548,8 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
             padding: const EdgeInsets.all(14),
             child: Row(children: [
               Container(
-                width: 44, height: 44,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
@@ -599,12 +606,8 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                     ]),
                   ])),
               const SizedBox(width: 8),
-              Icon(
-                  _expandido
-                      ? Icons.expand_less
-                      : Icons.expand_more,
-                  color: Colors.white38,
-                  size: 20),
+              Icon(_expandido ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white38, size: 20),
             ]),
           ),
         ),
@@ -621,7 +624,8 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(children: [
                       Container(
-                        width: 24, height: 24,
+                        width: 24,
+                        height: 24,
                         decoration: BoxDecoration(
                           color: const Color(0xFFFF6B35).withOpacity(0.12),
                           borderRadius: BorderRadius.circular(6),
@@ -650,47 +654,43 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
               const Divider(color: Colors.white10, height: 16),
 
               // Totales
-              Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Subtotal',
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 12)),
-                    Text('\$${p.subtotal.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            color: Colors.white54, fontSize: 12)),
-                  ]),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Subtotal',
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                Text('\$${p.subtotal.toStringAsFixed(2)}',
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 12)),
+              ]),
               const SizedBox(height: 3),
-              Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14)),
-                    Text('\$${p.total.toStringAsFixed(2)}',
-                        style: TextStyle(
-                            color: color,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14)),
-                  ]),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Total',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
+                Text('\$${p.total.toStringAsFixed(2)}',
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
+              ]),
 
               const SizedBox(height: 6),
               Row(children: [
-                const Icon(Icons.payment,
-                    color: Colors.white38, size: 14),
+                const Icon(Icons.payment, color: Colors.white38, size: 14),
                 const SizedBox(width: 6),
                 Text(p.metodoPago,
-                    style: const TextStyle(
-                        color: Colors.white38, fontSize: 12)),
+                    style:
+                        const TextStyle(color: Colors.white38, fontSize: 12)),
               ]),
 
               // Dirección si es domicilio
               if (p.tipoPedido == 'domicilio' &&
                   p.direccionEntrega != null &&
-                  (p.direccionEntrega!['direccion'] ?? '').toString().isNotEmpty) ...[
+                  (p.direccionEntrega!['direccion'] ?? '')
+                      .toString()
+                      .isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Row(children: [
                   const Icon(Icons.location_on,
@@ -712,20 +712,18 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                   color: const Color(0xFFFF6B35).withOpacity(0.08),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color:
-                          const Color(0xFFFF6B35).withOpacity(0.2)),
+                      color: const Color(0xFFFF6B35).withOpacity(0.2)),
                 ),
                 child: Row(children: [
-                  const Text('🔑',
-                      style: TextStyle(fontSize: 16)),
+                  const Text('🔑', style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 8),
                   Expanded(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                         const Text('Código de verificación',
-                            style: TextStyle(
-                                color: Colors.white38, fontSize: 10)),
+                            style:
+                                TextStyle(color: Colors.white38, fontSize: 10)),
                         Text((p.codigoVerificacion ?? '----'),
                             style: const TextStyle(
                                 color: Color(0xFFFF6B35),
@@ -734,15 +732,14 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                                 letterSpacing: 4)),
                       ])),
                   IconButton(
-                    icon: const Icon(Icons.copy,
-                        color: Colors.white38, size: 18),
+                    icon:
+                        const Icon(Icons.copy, color: Colors.white38, size: 18),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(
                           text: (p.codigoVerificacion ?? '----')));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Código copiado'),
-                              duration: Duration(seconds: 1)));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Código copiado'),
+                          duration: Duration(seconds: 1)));
                     },
                   ),
                 ]),
@@ -765,18 +762,15 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                               fontSize: 12,
                               fontWeight: FontWeight.bold)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                            color: Color(0xFFFF6B35)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
+                        side: const BorderSide(color: Color(0xFFFF6B35)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
 
-                if (p.estado == 'Entregado')
-                  const SizedBox(width: 8),
+                if (p.estado == 'Entregado') const SizedBox(width: 8),
 
                 // Tracking
                 if (p.estado == 'En camino' &&
@@ -787,19 +781,15 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                       onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  TrackingClientePage(pedido: p))),
-                      icon: const Text('🛵',
-                          style: TextStyle(fontSize: 14)),
+                              builder: (_) => TrackingClientePage(pedido: p))),
+                      icon: const Text('🛵', style: TextStyle(fontSize: 14)),
                       label: const Text('Ver en mapa',
                           style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12)),
+                              fontWeight: FontWeight.bold, fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.indigo,
                         foregroundColor: Colors.white,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
@@ -813,19 +803,16 @@ class _TarjetaPedidoState extends State<_TarjetaPedido> {
                       onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  CalificacionPage(pedido: p))),
-                      icon: const Icon(Icons.star,
-                          size: 15, color: Colors.white),
+                              builder: (_) => CalificacionPage(pedido: p))),
+                      icon:
+                          const Icon(Icons.star, size: 15, color: Colors.white),
                       label: const Text('Calificar',
                           style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold)),
+                              fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.amber.shade700,
                         foregroundColor: Colors.white,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),

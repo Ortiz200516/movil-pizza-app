@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../cliente/chat_page.dart';
 import '../services/launcher_service.dart';
 import '../services/auth_services.dart';
 import '../services/ubicacion_service.dart';
@@ -16,6 +17,9 @@ const _kBg    = Color(0xFF0F172A);
 const _kCard  = Color(0xFF1E293B);
 const _kAccent = Color(0xFF6366F1); // índigo moderno
 
+// Instancia singleton del servicio GPS
+final _gpsService = UbicacionService();
+
 class HomeRepartidor extends StatefulWidget {
   const HomeRepartidor({super.key});
   @override State<HomeRepartidor> createState() => _HomeRepartidorState();
@@ -23,6 +27,11 @@ class HomeRepartidor extends StatefulWidget {
 
 class _HomeRepartidorState extends State<HomeRepartidor> {
   final user = FirebaseAuth.instance.currentUser;
+  @override
+  void dispose() {
+    _gpsService.detenerTracking();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,10 +105,16 @@ class _RepartidorAppBar extends StatelessWidget implements PreferredSizeWidget {
           actions: [
             // Toggle disponibilidad
             GestureDetector(
-              onTap: () {
+              onTap: () async {
                 HapticFeedback.mediumImpact();
-                FirebaseFirestore.instance.collection('users').doc(uid)
-                    .update({'disponible': !disponible});
+                final nuevoEstado = !disponible;
+                await FirebaseFirestore.instance.collection('users').doc(uid)
+                    .update({'disponible': nuevoEstado});
+                if (nuevoEstado) {
+                  _gpsService.iniciarTracking();
+                } else {
+                  _gpsService.detenerTracking();
+                }
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
@@ -357,7 +372,7 @@ class _CardDisponibleState extends State<_CardDisponible> {
     if (mounted) {
       setState(() => _tomando = false);
       if (ok) {
-        UbicacionService().iniciarTracking();
+        _gpsService.iniciarTracking();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('✅ Pedido tomado — ¡a entregar! GPS activado 📍'),
           backgroundColor: Colors.green,
@@ -594,7 +609,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
     if (mounted) {
       setState(() => _verificando = false);
       if (ok) {
-        UbicacionService().detenerTracking();
+        _gpsService.detenerTracking();
         HapticFeedback.heavyImpact();
         showDialog(
           context: context,
