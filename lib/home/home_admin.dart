@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
 import '../services/auth_services.dart';
 import '../services/categoria_service.dart';
 import '../services/producto_service.dart';
@@ -18,11 +15,16 @@ import '../admin/mesas_admin_page.dart';
 import '../admin/disponibilidad_page.dart';
 import '../admin/dashboard_page.dart';
 import '../admin/cupones_page.dart';
+import '../admin/promociones_admin_page.dart';
 
-const _estadosActivos = ['Pendiente', 'Preparando', 'Listo', 'En camino'];
+// ── Colores ───────────────────────────────────────────────────────────────────
+const _kPurple  = Color(0xFF7C3AED);
+const _kPurple2 = Color(0xFF581C87);
+const _kBg      = Color(0xFF0F172A);
+const _kCard    = Color(0xFF1E293B);
 
-Color _colorEstado(String estado) {
-  switch (estado) {
+Color _colorEstado(String e) {
+  switch (e) {
     case 'Pendiente':  return Colors.orange;
     case 'Preparando': return Colors.blue;
     case 'Listo':      return Colors.purple;
@@ -33,8 +35,8 @@ Color _colorEstado(String estado) {
   }
 }
 
-IconData _iconoEstado(String estado) {
-  switch (estado) {
+IconData _iconoEstado(String e) {
+  switch (e) {
     case 'Pendiente':  return Icons.access_time;
     case 'Preparando': return Icons.restaurant;
     case 'Listo':      return Icons.done_all;
@@ -45,6 +47,13 @@ IconData _iconoEstado(String estado) {
   }
 }
 
+// ── Secciones del admin ───────────────────────────────────────────────────────
+enum _Sec {
+  dashboard, categorias, productos, pedidos,
+  mesas, disponibilidad, reportes, cupones, promociones, usuarios,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 class HomeAdmin extends StatefulWidget {
   const HomeAdmin({super.key});
   @override
@@ -52,434 +61,537 @@ class HomeAdmin extends StatefulWidget {
 }
 
 class _HomeAdminState extends State<HomeAdmin> {
-  final AuthService _authService = AuthService();
-  final CategoriaService _categoriaService = CategoriaService();
-  final ProductoService _productoService = ProductoService();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _picker = ImagePicker();
+  final _auth     = AuthService();
+  final _catSvc   = CategoriaService();
+  final _prodSvc  = ProductoService();
+  final _scaffKey = GlobalKey<ScaffoldState>();
 
-  final List<String> iconosDisponibles = [
-    '🍕', '🍔', '🌮', '🍗', '🥤', '🍺', '🎂', '🍪',
-    '🥗', '🍝', '🍟', '🌭', '🥪', '🍩', '☕', '🧃'
+  _Sec _sec = _Sec.dashboard;
+
+  final _iconos = [
+    '🍕','🍔','🌮','🍗','🥤','🍺','🎂','🍪',
+    '🥗','🍝','🍟','🌭','🥪','🍩','☕','🧃',
   ];
+
+  String get _titulo {
+    switch (_sec) {
+      case _Sec.dashboard:      return '📊 Dashboard';
+      case _Sec.categorias:     return '🗂️ Categorías';
+      case _Sec.productos:      return '🍕 Productos';
+      case _Sec.pedidos:        return '📋 Pedidos';
+      case _Sec.mesas:          return '🪑 Mesas';
+      case _Sec.disponibilidad: return '🟢 Disponibilidad';
+      case _Sec.reportes:       return '📈 Reportes';
+      case _Sec.cupones:        return '🎟️ Cupones';
+      case _Sec.promociones:    return '🎉 Promociones';
+      case _Sec.usuarios:       return '👥 Usuarios';
+    }
+  }
+
+  Widget get _body {
+    switch (_sec) {
+      case _Sec.dashboard:      return const DashboardPage();
+      case _Sec.categorias:     return _CategoriasTab(svc: _catSvc, iconos: _iconos);
+      case _Sec.productos:      return _ProductosTab(prodSvc: _prodSvc, catSvc: _catSvc, iconos: _iconos);
+      case _Sec.pedidos:        return PedidosAdminPage();
+      case _Sec.mesas:          return const MesasAdminPage();
+      case _Sec.disponibilidad: return const DisponibilidadPage();
+      case _Sec.reportes:       return const ReportesPage();
+      case _Sec.cupones:        return const CuponesPage();
+      case _Sec.promociones:    return const PromocionesAdminPage();
+      case _Sec.usuarios:       return const UsuariosPage();
+    }
+  }
+
+  void _ir(_Sec s) {
+    HapticFeedback.selectionClick();
+    setState(() => _sec = s);
+    _scaffKey.currentState?.closeDrawer();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 8,
-      child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: const Color(0xFF111827),
-        appBar: AppBar(
-          title: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('pedidos')
-                .where('estado', whereIn: ['Pendiente', 'Preparando', 'Listo'])
-                .snapshots(),
-            builder: (_, snap) {
-              final count = snap.data?.docs.length ?? 0;
-              return Row(children: [
-                const Text('👨‍💼 Admin',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                if (count > 0) ...[
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.red.withOpacity(0.5))),
-                    child: Text('$count activos',
-                      style: const TextStyle(color: Colors.red,
-                          fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ]);
-            },
-          ),
-          backgroundColor: const Color(0xFF581C87),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            indicatorColor: Colors.white,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white60,
-            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            tabs: [
-              Tab(icon: Icon(Icons.category, size: 20), text: 'Categorías'),
-              Tab(icon: Icon(Icons.inventory, size: 20), text: 'Productos'),
-              Tab(icon: Icon(Icons.receipt_long, size: 20), text: 'Pedidos'),
-              Tab(icon: Icon(Icons.bar_chart, size: 20), text: 'Reportes'),
-              Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Mesas'),
-              Tab(icon: Icon(Icons.toggle_on, size: 20), text: 'Disponibilidad'),
-              Tab(icon: Icon(Icons.dashboard, size: 20), text: 'Dashboard'),
-              Tab(icon: Icon(Icons.local_offer, size: 20), text: 'Cupones'),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.people),
-              tooltip: 'Gestionar Usuarios',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const UsuariosPage())),
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Cerrar Sesión',
-              onPressed: () async {
-                await _authService.logout();
-                if (context.mounted) {
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()));
-                }
-              },
-            ),
-          ],
-        ),
-        drawer: _buildDashboardDrawer(),
-        body: TabBarView(
-          children: [
-            _buildCategoriasTab(),
-            _buildProductosTab(),
-            PedidosAdminPage(),
-            ReportesPage(),
-            MesasAdminPage(),
-            DisponibilidadPage(),
-            DashboardPage(),
-            CuponesPage(),
-          ],
-        ),
-        floatingActionButton: Builder(
-          builder: (context) {
-            final tab = DefaultTabController.of(context);
-            return AnimatedBuilder(
-              animation: tab,
-              builder: (context, _) {
-                if (tab.index == 0) {
-                  return FloatingActionButton.extended(
-                    onPressed: _mostrarDialogoAgregarCategoria,
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Agregar Categoría'),
-                  );
-                } else if (tab.index == 1) {
-                  return FloatingActionButton.extended(
-                    onPressed: _mostrarDialogoAgregarProducto,
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Agregar Producto'),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            );
-          },
-        ),
+    return Scaffold(
+      key: _scaffKey,
+      backgroundColor: _kBg,
+      appBar: _buildAppBar(),
+      drawer: _AdminDrawer(actual: _sec, onIr: _ir),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: KeyedSubtree(key: ValueKey(_sec), child: _body),
       ),
+      floatingActionButton: _buildFab(),
     );
   }
 
-  // ── Drawer ────────────────────────────────────────────────────────────────
-  Widget _buildDashboardDrawer() {
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: _kPurple2,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.menu),
+        onPressed: () => _scaffKey.currentState?.openDrawer(),
+      ),
+      title: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('pedidos')
+            .where('estado', whereIn: ['Pendiente', 'Preparando', 'Listo'])
+            .snapshots(),
+        builder: (_, snap) {
+          final n = snap.data?.docs.length ?? 0;
+          return Row(children: [
+            Expanded(child: Text(_titulo,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                overflow: TextOverflow.ellipsis)),
+            if (n > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
+                ),
+                child: Text('$n urgentes', style: const TextStyle(
+                    color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+          ]);
+        },
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout),
+          tooltip: 'Cerrar sesión',
+          onPressed: () async {
+            await _auth.logout();
+            if (context.mounted) {
+              Navigator.pushReplacement(context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()));
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget? _buildFab() {
+    if (_sec == _Sec.categorias) {
+      return FloatingActionButton.extended(
+        onPressed: () => _CategoriasTab.showAgregar(context, _catSvc, _iconos),
+        backgroundColor: _kPurple,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Nueva Categoría'),
+      );
+    }
+    if (_sec == _Sec.productos) {
+      return FloatingActionButton.extended(
+        onPressed: () => _ProductosTab.showAgregar(context, _prodSvc, _catSvc),
+        backgroundColor: _kPurple,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Nuevo Producto'),
+      );
+    }
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAWER
+// ─────────────────────────────────────────────────────────────────────────────
+class _AdminDrawer extends StatelessWidget {
+  final _Sec actual;
+  final void Function(_Sec) onIr;
+  const _AdminDrawer({required this.actual, required this.onIr});
+
+  @override
+  Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: const Color(0xFF111827),
+      backgroundColor: _kBg,
       child: Column(children: [
+        // ── Header ───────────────────────────────────────────────────────────
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.fromLTRB(
+              20, MediaQuery.of(context).padding.top + 20, 20, 20),
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF581C87), Color(0xFF7C3AED)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [_kPurple2, _kPurple],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
-          child: SafeArea(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.dashboard, color: Colors.white, size: 40),
-              const SizedBox(height: 8),
-              const Text('Panel en Tiempo Real',
-                  style: TextStyle(color: Colors.white,
-                      fontSize: 18, fontWeight: FontWeight.bold)),
-              Text(_authService.currentUserEmail ?? '',
-                  style: const TextStyle(color: Colors.white60, fontSize: 12)),
-            ]),
-          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 58, height: 58,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+              ),
+              child: const Center(child: Text('👨‍💼', style: TextStyle(fontSize: 28))),
+            ),
+            const SizedBox(height: 12),
+            const Text('Panel Admin', style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+            const Text('La Italiana Pizzería', style: TextStyle(
+                color: Colors.white54, fontSize: 12)),
+          ]),
         ),
+
+        // ── KPI rápido ───────────────────────────────────────────────────────
+        _DrawerKpi(),
+
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── Menú ─────────────────────────────────────────────────────────────
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
-              const Text('👨‍🍳 Cocina',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 8),
-              _buildCocinaStatus(),
-              const SizedBox(height: 20),
-              Divider(color: Colors.white.withOpacity(0.1)),
-              const SizedBox(height: 12),
-              const Text('🛵 Repartidores',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 8),
-              _buildRepartidoresStatus(),
-              const SizedBox(height: 20),
-              Divider(color: Colors.white.withOpacity(0.1)),
-              const SizedBox(height: 12),
-              const Text('📦 Pedidos Recientes',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 8),
-              _buildPedidosRecientes(),
+              _Item(emoji: '📊', label: 'Dashboard',
+                  sec: _Sec.dashboard, actual: actual, onTap: onIr),
+
+              _Separator('MENÚ'),
+              _Item(emoji: '🗂️', label: 'Categorías',
+                  sec: _Sec.categorias, actual: actual, onTap: onIr),
+              _Item(emoji: '🍕', label: 'Productos',
+                  sec: _Sec.productos, actual: actual, onTap: onIr),
+
+              _Separator('OPERACIONES'),
+              _Item(emoji: '📋', label: 'Pedidos',
+                  sec: _Sec.pedidos, actual: actual, onTap: onIr, badge: true),
+              _Item(emoji: '🪑', label: 'Mesas',
+                  sec: _Sec.mesas, actual: actual, onTap: onIr),
+              _Item(emoji: '🟢', label: 'Disponibilidad',
+                  sec: _Sec.disponibilidad, actual: actual, onTap: onIr),
+
+              _Separator('MARKETING'),
+              _Item(emoji: '🎟️', label: 'Cupones',
+                  sec: _Sec.cupones, actual: actual, onTap: onIr),
+              _Item(emoji: '🎉', label: 'Promociones',
+                  sec: _Sec.promociones, actual: actual, onTap: onIr),
+
+              _Separator('ANALYTICS'),
+              _Item(emoji: '📈', label: 'Reportes',
+                  sec: _Sec.reportes, actual: actual, onTap: onIr),
+              _Item(emoji: '👥', label: 'Usuarios',
+                  sec: _Sec.usuarios, actual: actual, onTap: onIr),
             ],
           ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(14),
+          child: const Text('La Italiana v1.0  ·  Admin',
+              style: TextStyle(color: Colors.white12, fontSize: 11)),
         ),
       ]),
     );
   }
+}
 
-  Widget _buildCocinaStatus() {
+class _DrawerKpi extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('pedidos')
-          .where('estado', whereIn: ['Pendiente', 'Preparando'])
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const _LoadingCard();
-        final pedidos = snapshot.data!.docs;
-        final enPreparacion = pedidos.where((p) => p['estado'] == 'Preparando').length;
-        final pendientes = pedidos.where((p) => p['estado'] == 'Pendiente').length;
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.orange.withOpacity(0.3)),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Icon(Icons.restaurant, color: Colors.orange, size: 18),
-              const SizedBox(width: 8),
-              Text('$enPreparacion en preparación',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              const Icon(Icons.pending, color: Colors.white38, size: 16),
-              const SizedBox(width: 8),
-              Text('$pendientes pendientes',
-                  style: const TextStyle(color: Colors.white60)),
-            ]),
-          ]),
-        );
-      },
-    );
-  }
+      stream: FirebaseFirestore.instance.collection('pedidos')
+          .where('estado', whereIn: [
+        'Pendiente', 'Preparando', 'Listo', 'En camino'
+      ]).snapshots(),
+      builder: (_, s1) {
+        final activos = s1.data?.docs.length ?? 0;
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('pedidos')
+              .where('estado', isEqualTo: 'Entregado').snapshots(),
+          builder: (_, s2) {
+            final now = DateTime.now();
+            final hoy = (s2.data?.docs ?? []).where((d) {
+              final ts = (d.data() as Map)['fecha'];
+              try {
+                final f = (ts as dynamic).toDate() as DateTime;
+                return f.year == now.year && f.month == now.month && f.day == now.day;
+              } catch (_) { return false; }
+            });
+            final ventas = hoy.fold(0.0, (s, d) =>
+                s + (((d.data() as Map)['total'] as num?)?.toDouble() ?? 0));
 
-  Widget _buildRepartidoresStatus() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('pedidos').where('estado', isEqualTo: 'En camino').snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const _LoadingCard();
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.withOpacity(0.3)),
-            ),
-            child: const Row(children: [
-              Icon(Icons.delivery_dining, color: Colors.blue, size: 18),
-              SizedBox(width: 8),
-              Text('No hay entregas en camino', style: TextStyle(color: Colors.white60)),
-            ]),
-          );
-        }
-        return Column(
-          children: docs.map((doc) {
-            final repartidorId = doc['repartidorId'];
-            return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('users').doc(repartidorId).get(),
-              builder: (context, snap) {
-                final nombre = snap.hasData
-                    ? snap.data!['email']?.split('@')[0] ?? 'Repartidor'
-                    : 'Repartidor';
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.indigo.withOpacity(0.4)),
-                  ),
-                  child: Row(children: [
-                    Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(
-                          color: Colors.indigo.withOpacity(0.2), shape: BoxShape.circle),
-                      child: const Center(child: Icon(Icons.delivery_dining,
-                          color: Colors.indigo, size: 18)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(nombre, style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                      const Text('Entregando pedido',
-                          style: TextStyle(color: Colors.white38, fontSize: 12)),
-                    ])),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.indigo.withOpacity(0.5)),
-                      ),
-                      child: const Text('En camino', style: TextStyle(
-                          color: Colors.indigo, fontSize: 10, fontWeight: FontWeight.bold)),
-                    ),
-                  ]),
-                );
-              },
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildPedidosRecientes() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('pedidos').orderBy('fecha', descending: true).limit(5).snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const _LoadingCard();
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-                color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12)),
-            child: const Text('No hay pedidos recientes',
-                style: TextStyle(color: Colors.white60)),
-          );
-        }
-        return Column(
-          children: docs.map((doc) {
-            final p = PedidoModel.fromFirestore(doc.id, doc.data() as Map<String, dynamic>);
-            final color = _colorEstado(p.estado);
-            final diff = DateTime.now().difference(p.fecha);
-            final tiempo = diff.inMinutes < 60
-                ? '${diff.inMinutes}m'
-                : diff.inHours < 24 ? '${diff.inHours}h' : '${diff.inDays}d';
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withOpacity(0.3)),
+                color: _kCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               ),
               child: Row(children: [
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
-                  child: Center(child: Icon(_iconoEstado(p.estado), color: color, size: 18)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('\$${p.total.toStringAsFixed(2)}', style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('${p.items.length} items · ${p.estado}',
-                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                Expanded(child: Column(children: [
+                  Text('$activos', style: const TextStyle(
+                      color: Colors.orange, fontWeight: FontWeight.w900, fontSize: 22)),
+                  const Text('Activos', style: TextStyle(color: Colors.white38, fontSize: 11)),
                 ])),
-                Text(tiempo, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                Container(width: 1, height: 32, color: Colors.white12),
+                Expanded(child: Column(children: [
+                  Text('\$${ventas.toStringAsFixed(0)}', style: const TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.w900, fontSize: 22)),
+                  const Text('Hoy', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                ])),
               ]),
             );
-          }).toList(),
+          },
         );
       },
     );
   }
+}
 
-  // ── Tab Categorías ────────────────────────────────────────────────────────
-  Widget _buildCategoriasTab() {
+class _Separator extends StatelessWidget {
+  final String label;
+  const _Separator(this.label);
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 10, 16, 3),
+    child: Text(label, style: const TextStyle(
+        color: Colors.white24, fontSize: 10,
+        fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+  );
+}
+
+class _Item extends StatelessWidget {
+  final String emoji, label;
+  final _Sec sec, actual;
+  final void Function(_Sec) onTap;
+  final bool badge;
+  const _Item({
+    required this.emoji, required this.label,
+    required this.sec, required this.actual,
+    required this.onTap, this.badge = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sel = sec == actual;
+    Widget tile = GestureDetector(
+      onTap: () => onTap(sec),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: sel ? _kPurple.withValues(alpha: 0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: sel ? _kPurple.withValues(alpha: 0.4) : Colors.transparent),
+        ),
+        child: Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: TextStyle(
+              color: sel ? Colors.white : Colors.white60,
+              fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14))),
+          if (sel)
+            const Icon(Icons.chevron_right, color: _kPurple, size: 16),
+        ]),
+      ),
+    );
+
+    if (!badge) return tile;
+
+    return Stack(children: [
+      tile,
+      Positioned(
+        right: 16, top: 4,
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('pedidos')
+              .where('estado', whereIn: ['Pendiente', 'Preparando', 'Listo'])
+              .snapshots(),
+          builder: (_, snap) {
+            final n = snap.data?.docs.length ?? 0;
+            if (n == 0) return const SizedBox.shrink();
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(10)),
+              child: Text('$n', style: const TextStyle(
+                  color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+            );
+          },
+        ),
+      ),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB CATEGORÍAS
+// ─────────────────────────────────────────────────────────────────────────────
+class _CategoriasTab extends StatelessWidget {
+  final CategoriaService svc;
+  final List<String> iconos;
+  const _CategoriasTab({required this.svc, required this.iconos});
+
+  static void showAgregar(BuildContext ctx, CategoriaService svc, List<String> iconos) {
+    final nombreCtrl = TextEditingController();
+    String iconoSel  = '🍕';
+    int orden        = 0;
+    bool cocina      = true;
+
+    showDialog(
+      context: ctx,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setD) => _AdminDialog(
+          titulo: '➕ Nueva Categoría',
+          onGuardar: () async {
+            if (nombreCtrl.text.isEmpty) return;
+            await svc.agregarCategoria(CategoriaModel(
+              id: '', nombre: nombreCtrl.text.trim(),
+              icono: iconoSel, orden: orden,
+              disponible: true, requiereCocina: cocina,
+            ));
+            if (dctx.mounted) Navigator.pop(dctx);
+          },
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            _Campo(ctrl: nombreCtrl, label: 'Nombre', icon: Icons.category),
+            const SizedBox(height: 12),
+            const Align(alignment: Alignment.centerLeft,
+                child: Text('Icono:', style: TextStyle(color: Colors.white54, fontSize: 13))),
+            const SizedBox(height: 8),
+            _IconPicker(iconos: iconos, sel: iconoSel,
+                onChange: (i) => setD(() => iconoSel = i)),
+            const SizedBox(height: 12),
+            Row(children: [
+              const Text('Orden:', style: TextStyle(color: Colors.white70)),
+              const SizedBox(width: 8),
+              IconButton(icon: const Icon(Icons.remove, color: Colors.white38, size: 20),
+                  onPressed: () => setD(() => orden = (orden - 1).clamp(0, 99))),
+              Text('$orden', style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+              IconButton(icon: const Icon(Icons.add, color: Colors.white38, size: 20),
+                  onPressed: () => setD(() => orden++)),
+            ]),
+            SwitchListTile(
+              title: const Text('Requiere cocina',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+              value: cocina, activeColor: _kPurple,
+              onChanged: (v) => setD(() => cocina = v),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<List<CategoriaModel>>(
-      stream: _categoriaService.obtenerCategorias(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Colors.purple));
+      stream: svc.obtenerCategorias(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _kPurple));
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _EmptyState(
-            icono: Icons.category,
-            mensaje: 'No hay categorías creadas',
-            sub: 'Toca el botón ➕ para agregar tu primera categoría',
-          );
+        final cats = snap.data ?? [];
+        if (cats.isEmpty) {
+          return const _EmptyState(icono: Icons.category,
+              msg: 'Sin categorías', sub: 'Toca ➕ para crear la primera');
         }
-        final cats = snapshot.data!;
-        final disponibles = cats.where((c) => c.disponible).length;
+        final vis = cats.where((c) => c.disponible).length;
         return Column(children: [
-          _StatsHeader(stats: [
-            _StatData('Total', cats.length.toString(), Icons.category, Colors.purple),
-            _StatData('Visibles', disponibles.toString(), Icons.check_circle, Colors.green),
-            _StatData('Ocultas', (cats.length - disponibles).toString(),
-                Icons.visibility_off, Colors.orange),
+          _StatsBar(items: [
+            _Stat('Total',    '${cats.length}', Icons.category,     _kPurple),
+            _Stat('Visibles', '$vis',           Icons.check_circle, Colors.green),
+            _Stat('Ocultas',  '${cats.length - vis}', Icons.visibility_off, Colors.orange),
           ]),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
               itemCount: cats.length,
-              itemBuilder: (_, i) => _buildCategoriaCard(cats[i]),
+              itemBuilder: (_, i) => _CatCard(cat: cats[i], svc: svc, iconos: iconos),
             ),
           ),
         ]);
       },
     );
   }
+}
 
-  Widget _buildCategoriaCard(CategoriaModel cat) {
+class _CatCard extends StatelessWidget {
+  final CategoriaModel cat;
+  final CategoriaService svc;
+  final List<String> iconos;
+  const _CatCard({required this.cat, required this.svc, required this.iconos});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(14),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: cat.disponible
-            ? Colors.purple.withOpacity(0.3) : Colors.white.withOpacity(0.08)),
+            ? _kPurple.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.08)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _mostrarDialogoEditarCategoria(cat),
+        onTap: () => _showEditar(context),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(children: [
             Container(
-              width: 56, height: 56,
+              width: 54, height: 54,
               decoration: BoxDecoration(
                 color: cat.disponible
-                    ? Colors.purple.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                    ? _kPurple.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Center(child: Text(cat.icono, style: const TextStyle(fontSize: 28))),
+              child: Center(child: Text(cat.icono,
+                  style: const TextStyle(fontSize: 26))),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(cat.nombre, style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
               const SizedBox(height: 6),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                _Chip(cat.disponible ? 'Visible' : 'Oculta',
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                _ChipTag(cat.disponible ? 'Visible' : 'Oculta',
                     cat.disponible ? Colors.green : Colors.orange),
-                _Chip('Orden: ${cat.orden}', Colors.blue),
-                if (cat.requiereCocina) _Chip('Cocina', Colors.purple),
+                _ChipTag('Orden ${cat.orden}', Colors.blue),
+                if (cat.requiereCocina) _ChipTag('Cocina', _kPurple),
               ]),
             ])),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _confirmarEliminarCategoria(cat),
+            PopupMenuButton<String>(
+              color: _kCard,
+              icon: const Icon(Icons.more_vert, color: Colors.white38),
+              onSelected: (v) async {
+                if (v == 'edit') _showEditar(context);
+                if (v == 'toggle') {
+                  await svc.editarCategoria(cat.id,
+                      CategoriaModel(id: cat.id, nombre: cat.nombre,
+                          icono: cat.icono, orden: cat.orden,
+                          disponible: !cat.disponible,
+                          requiereCocina: cat.requiereCocina));
+                }
+                if (v == 'del') {
+                  final ok = await _confirm(context, '¿Eliminar "${cat.nombre}"?');
+                  if (ok) await svc.eliminarCategoria(cat.id);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit',
+                    child: ListTile(leading: Icon(Icons.edit, color: Colors.white54),
+                        title: Text('Editar', style: TextStyle(color: Colors.white)))),
+                PopupMenuItem(value: 'toggle',
+                    child: ListTile(
+                        leading: Icon(
+                            cat.disponible ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.white54),
+                        title: Text(cat.disponible ? 'Ocultar' : 'Mostrar',
+                            style: const TextStyle(color: Colors.white)))),
+                const PopupMenuItem(value: 'del',
+                    child: ListTile(leading: Icon(Icons.delete, color: Colors.red),
+                        title: Text('Eliminar', style: TextStyle(color: Colors.red)))),
+              ],
             ),
           ]),
         ),
@@ -487,93 +599,277 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  // ── Tab Productos ─────────────────────────────────────────────────────────
-  Widget _buildProductosTab() {
-    return StreamBuilder<List<ProductoModel>>(
-      stream: _productoService.obtenerProductos(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Colors.purple));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _EmptyState(
-            icono: Icons.inventory,
-            mensaje: 'No hay productos creados',
-            sub: 'Toca el botón ➕ para agregar tu primer producto',
-          );
-        }
-        final prods = snapshot.data!;
-        final disponibles = prods.where((p) => p.disponible).length;
-        return Column(children: [
-          _StatsHeader(stats: [
-            _StatData('Total', prods.length.toString(), Icons.inventory, Colors.purple),
-            _StatData('Disponibles', disponibles.toString(), Icons.check_circle, Colors.green),
-            _StatData('Agotados', (prods.length - disponibles).toString(),
-                Icons.remove_circle, Colors.red),
-          ]),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: prods.length,
-              itemBuilder: (_, i) => _buildProductoCard(prods[i]),
+  void _showEditar(BuildContext context) {
+    final nombreCtrl = TextEditingController(text: cat.nombre);
+    String iconoSel  = cat.icono;
+    int orden        = cat.orden;
+    bool disponible  = cat.disponible;
+    bool cocina      = cat.requiereCocina;
+
+    showDialog(
+      context: context,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setD) => _AdminDialog(
+          titulo: '✏️ Editar Categoría',
+          onGuardar: () async {
+            await svc.editarCategoria(cat.id, CategoriaModel(
+              id: cat.id, nombre: nombreCtrl.text.trim(),
+              icono: iconoSel, orden: orden,
+              disponible: disponible, requiereCocina: cocina,
+            ));
+            if (dctx.mounted) Navigator.pop(dctx);
+          },
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            _Campo(ctrl: nombreCtrl, label: 'Nombre', icon: Icons.category),
+            const SizedBox(height: 12),
+            const Align(alignment: Alignment.centerLeft,
+                child: Text('Icono:', style: TextStyle(color: Colors.white54, fontSize: 13))),
+            const SizedBox(height: 8),
+            _IconPicker(iconos: iconos, sel: iconoSel,
+                onChange: (i) => setD(() => iconoSel = i)),
+            const SizedBox(height: 12),
+            Row(children: [
+              const Text('Orden:', style: TextStyle(color: Colors.white70)),
+              const SizedBox(width: 8),
+              IconButton(icon: const Icon(Icons.remove, color: Colors.white38, size: 20),
+                  onPressed: () => setD(() => orden = (orden - 1).clamp(0, 99))),
+              Text('$orden', style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+              IconButton(icon: const Icon(Icons.add, color: Colors.white38, size: 20),
+                  onPressed: () => setD(() => orden++)),
+            ]),
+            SwitchListTile(
+              title: const Text('Visible', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              value: disponible, activeColor: _kPurple,
+              onChanged: (v) => setD(() => disponible = v),
             ),
+            SwitchListTile(
+              title: const Text('Requiere cocina',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+              value: cocina, activeColor: _kPurple,
+              onChanged: (v) => setD(() => cocina = v),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB PRODUCTOS
+// ─────────────────────────────────────────────────────────────────────────────
+class _ProductosTab extends StatefulWidget {
+  final ProductoService prodSvc;
+  final CategoriaService catSvc;
+  final List<String> iconos;
+  const _ProductosTab({required this.prodSvc, required this.catSvc, required this.iconos});
+
+  static void showAgregar(BuildContext ctx, ProductoService prodSvc, CategoriaService catSvc) async {
+    final nombreCtrl = TextEditingController();
+    final precioCtrl = TextEditingController();
+    final descCtrl   = TextEditingController();
+    String? catSel;
+    final cats = await catSvc.obtenerCategorias().first;
+    if (!ctx.mounted) return;
+
+    showDialog(
+      context: ctx,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setD) => _AdminDialog(
+          titulo: '➕ Nuevo Producto',
+          onGuardar: () async {
+            if (nombreCtrl.text.isEmpty || precioCtrl.text.isEmpty || catSel == null) return;
+            final cat = cats.firstWhere((c) => c.id == catSel);
+            await prodSvc.agregarProducto(ProductoModel(
+              id: '', nombre: nombreCtrl.text.trim(),
+              precio: double.tryParse(precioCtrl.text.replaceAll(',', '.')) ?? 0,
+              descripcion: descCtrl.text.trim(),
+              disponible: true, categoria: cat.nombre,
+            ));
+            if (dctx.mounted) Navigator.pop(dctx);
+          },
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            _Campo(ctrl: nombreCtrl, label: 'Nombre', icon: Icons.fastfood),
+            const SizedBox(height: 12),
+            _Campo(ctrl: descCtrl, label: 'Descripción', icon: Icons.description, maxLines: 2),
+            const SizedBox(height: 12),
+            _Campo(ctrl: precioCtrl, label: 'Precio', icon: Icons.attach_money,
+                tipo: TextInputType.number),
+            const SizedBox(height: 12),
+            _CatDropdown(cats: cats, val: catSel, onChanged: (v) => setD(() => catSel = v)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  State<_ProductosTab> createState() => _ProductosTabState();
+}
+
+class _ProductosTabState extends State<_ProductosTab> {
+  String _busq = '';
+  final _ctrl  = TextEditingController();
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ProductoModel>>(
+      stream: widget.prodSvc.obtenerProductos(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _kPurple));
+        }
+        final todos = snap.data ?? [];
+        var prods = todos;
+        if (_busq.isNotEmpty) {
+          prods = prods.where((p) =>
+            p.nombre.toLowerCase().contains(_busq) ||
+            p.categoria.toLowerCase().contains(_busq)).toList();
+        }
+        final disp = todos.where((p) => p.disponible).length;
+
+        return Column(children: [
+          _StatsBar(items: [
+            _Stat('Total',      '${todos.length}', Icons.inventory,   _kPurple),
+            _Stat('Disponibles', '$disp',          Icons.check_circle, Colors.green),
+            _Stat('Agotados', '${todos.length - disp}', Icons.remove_circle, Colors.red),
+          ]),
+
+          // Buscador
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: TextField(
+              controller: _ctrl,
+              onChanged: (v) => setState(() => _busq = v.toLowerCase()),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Buscar producto o categoría...',
+                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                prefixIcon: const Icon(Icons.search, color: Colors.white24, size: 20),
+                suffixIcon: _busq.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.white38, size: 18),
+                        onPressed: () { _ctrl.clear(); setState(() => _busq = ''); })
+                    : null,
+                filled: true, fillColor: _kCard,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: _kPurple, width: 1.5)),
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: prods.isEmpty
+                ? const _EmptyState(icono: Icons.inventory,
+                    msg: 'Sin productos', sub: 'Toca ➕ para crear el primero')
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                    itemCount: prods.length,
+                    itemBuilder: (_, i) => _ProdCard(
+                        prod: prods[i], svc: widget.prodSvc, catSvc: widget.catSvc),
+                  ),
           ),
         ]);
       },
     );
   }
+}
 
-  Widget _buildProductoCard(ProductoModel p) {
+class _ProdCard extends StatelessWidget {
+  final ProductoModel prod;
+  final ProductoService svc;
+  final CategoriaService catSvc;
+  const _ProdCard({required this.prod, required this.svc, required this.catSvc});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: p.disponible
-            ? Colors.purple.withOpacity(0.3) : Colors.white.withOpacity(0.08)),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: prod.disponible
+            ? _kPurple.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.08)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _mostrarDialogoEditarProducto(p),
+        onTap: () => _showEditar(context),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           child: Row(children: [
-            // ── Imagen o emoji ──────────────────────────────
+            // Imagen/icono
             Container(
-              width: 64, height: 64,
+              width: 58, height: 58,
               decoration: BoxDecoration(
-                color: p.disponible
-                    ? Colors.purple.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                color: prod.disponible
+                    ? _kPurple.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: p.imagenUrl != null && p.imagenUrl!.isNotEmpty
-                    ? Image.network(p.imagenUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                            child: Text(p.icono, style: const TextStyle(fontSize: 28))))
-                    : Center(child: Text(p.icono, style: const TextStyle(fontSize: 28))),
-              ),
+              child: Center(child: Text(prod.icono,
+                      style: const TextStyle(fontSize: 26))),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(p.nombre, style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              const SizedBox(height: 3),
-              Text(p.descripcion, style: const TextStyle(color: Colors.white38, fontSize: 12),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(prod.nombre, style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              if (prod.descripcion.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(prod.descripcion,
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
               const SizedBox(height: 6),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                _Chip('\$${p.precio.toStringAsFixed(2)}', Colors.green),
-                _Chip(p.categoria, Colors.blue),
-                if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty)
-                  _Chip('📷 Foto', Colors.purple),
-                if (!p.disponible) _Chip('Agotado', Colors.red),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                _ChipTag('\$${prod.precio.toStringAsFixed(2)}', Colors.green),
+                _ChipTag(prod.categoria, Colors.blue),
+                if (!prod.disponible) _ChipTag('Agotado', Colors.red),
               ]),
             ])),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _confirmarEliminarProducto(p),
+            PopupMenuButton<String>(
+              color: _kCard,
+              icon: const Icon(Icons.more_vert, color: Colors.white38),
+              onSelected: (v) async {
+                if (v == 'edit') _showEditar(context);
+                if (v == 'toggle') {
+                  await svc.editarProducto(prod.id, ProductoModel(
+                    id: prod.id, nombre: prod.nombre, precio: prod.precio,
+                    descripcion: prod.descripcion, categoria: prod.categoria,
+                    disponible: !prod.disponible,
+                  ));
+                }
+                if (v == 'del') {
+                  final ok = await _confirm(context, '¿Eliminar "${prod.nombre}"?');
+                  if (ok) await svc.eliminarProducto(prod.id);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit',
+                    child: ListTile(leading: Icon(Icons.edit, color: Colors.white54),
+                        title: Text('Editar', style: TextStyle(color: Colors.white)))),
+                PopupMenuItem(value: 'toggle',
+                    child: ListTile(
+                        leading: Icon(
+                            prod.disponible ? Icons.remove_circle : Icons.check_circle,
+                            color: Colors.white54),
+                        title: Text(prod.disponible ? 'Marcar agotado' : 'Disponible',
+                            style: const TextStyle(color: Colors.white)))),
+                const PopupMenuItem(value: 'del',
+                    child: ListTile(leading: Icon(Icons.delete, color: Colors.red),
+                        title: Text('Eliminar', style: TextStyle(color: Colors.red)))),
+              ],
             ),
           ]),
         ),
@@ -581,701 +877,284 @@ class _HomeAdminState extends State<HomeAdmin> {
     );
   }
 
-  // ── Subida de imagen ──────────────────────────────────────────────────────
-  Future<String?> _subirImagen(XFile imgFile, String productoId) async {
-    try {
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('productos/$productoId.jpg');
-      final task = await ref.putFile(
-        File(imgFile.path),
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      return await task.ref.getDownloadURL();
-    } catch (e) {
-      _snack('⚠️ Error subiendo imagen: $e', Colors.orange);
-      return null;
-    }
-  }
-
-  // ── Diálogos de producto ──────────────────────────────────────────────────
-  void _mostrarDialogoAgregarProducto() async {
-    final nombreCtrl = TextEditingController();
-    final precioCtrl = TextEditingController();
-    final descCtrl   = TextEditingController();
-    String? catSel;
-    XFile? imagenSel;
-    final categorias = await _categoriaService.obtenerCategorias().first;
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setM) => _FormProducto(
-          titulo: '➕ Nuevo producto',
-          nombreCtrl: nombreCtrl,
-          precioCtrl: precioCtrl,
-          descCtrl: descCtrl,
-          categorias: categorias,
-          catSel: catSel,
-          imagenSel: imagenSel,
-          imagenUrlActual: null,
-          onCatChanged: (v) => setM(() => catSel = v),
-          onImagenSel: (img) => setM(() => imagenSel = img),
-          onGuardar: () async {
-            if (nombreCtrl.text.isEmpty || precioCtrl.text.isEmpty || catSel == null) {
-              _snack('⚠️ Completa nombre, precio y categoría', Colors.orange);
-              return;
-            }
-            final categoria = categorias.firstWhere((c) => c.id == catSel);
-            // Crear producto primero para obtener ID
-            final ref = await FirebaseFirestore.instance.collection('productos').add({
-              'nombre': nombreCtrl.text.trim(),
-              'descripcion': descCtrl.text.trim(),
-              'precio': double.tryParse(precioCtrl.text.replaceAll(',', '.')) ?? 0,
-              'categoria': categoria.nombre,
-              'disponible': true,
-              'tiempoPreparacion': 15,
-            });
-            // Subir imagen si hay una seleccionada
-            if (imagenSel != null) {
-              final url = await _subirImagen(imagenSel!, ref.id);
-              if (url != null) {
-                await ref.update({'imagenUrl': url});
-              }
-            }
-            if (ctx.mounted) Navigator.pop(ctx);
-            _snack('✅ Producto agregado', Colors.green);
-          },
-        ),
-      ),
-    );
-  }
-
-  void _mostrarDialogoEditarProducto(ProductoModel prod) async {
+  void _showEditar(BuildContext context) async {
     final nombreCtrl = TextEditingController(text: prod.nombre);
     final precioCtrl = TextEditingController(text: prod.precio.toString());
     final descCtrl   = TextEditingController(text: prod.descripcion);
     String catSel    = prod.categoria;
     bool disponible  = prod.disponible;
-    XFile? imagenSel;
-    final categorias = await _categoriaService.obtenerCategorias().first;
-    if (!mounted) return;
+    final cats       = await catSvc.obtenerCategorias().first;
+    if (!context.mounted) return;
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setM) => _FormProducto(
-          titulo: '✏️ Editar producto',
-          nombreCtrl: nombreCtrl,
-          precioCtrl: precioCtrl,
-          descCtrl: descCtrl,
-          categorias: categorias,
-          catSel: categorias.any((c) => c.nombre == catSel) ? catSel : null,
-          imagenSel: imagenSel,
-          imagenUrlActual: prod.imagenUrl,
-          disponible: disponible,
-          usaNombreEnCat: true,
-          onCatChanged: (v) => setM(() => catSel = v ?? catSel),
-          onImagenSel: (img) => setM(() => imagenSel = img),
-          onDisponibleChanged: (v) => setM(() => disponible = v),
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setD) => _AdminDialog(
+          titulo: '✏️ Editar Producto',
           onGuardar: () async {
-            String? nuevaUrl = prod.imagenUrl;
-            if (imagenSel != null) {
-              nuevaUrl = await _subirImagen(imagenSel!, prod.id);
-            }
-            await _productoService.editarProducto(
-              prod.id,
-              ProductoModel(
-                id: prod.id,
-                nombre: nombreCtrl.text,
-                precio: double.tryParse(precioCtrl.text) ?? prod.precio,
-                descripcion: descCtrl.text,
-                disponible: disponible,
-                categoria: catSel,
-                imagenUrl: nuevaUrl,
-              ),
-            );
-            if (ctx.mounted) Navigator.pop(ctx);
-            _snack('✅ Producto actualizado', Colors.green);
+            await svc.editarProducto(prod.id, ProductoModel(
+              id: prod.id, nombre: nombreCtrl.text.trim(),
+              precio: double.tryParse(precioCtrl.text) ?? prod.precio,
+              descripcion: descCtrl.text.trim(),
+              disponible: disponible, categoria: catSel,
+            ));
+            if (dctx.mounted) Navigator.pop(dctx);
           },
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            _Campo(ctrl: nombreCtrl, label: 'Nombre', icon: Icons.fastfood),
+            const SizedBox(height: 12),
+            _Campo(ctrl: descCtrl, label: 'Descripción', icon: Icons.description, maxLines: 2),
+            const SizedBox(height: 12),
+            _Campo(ctrl: precioCtrl, label: 'Precio', icon: Icons.attach_money,
+                tipo: TextInputType.number),
+            const SizedBox(height: 12),
+            _CatDropdown(
+                cats: cats,
+                val: cats.any((c) => c.nombre == catSel) ? catSel : null,
+                useName: true,
+                onChanged: (v) => setD(() => catSel = v ?? catSel)),
+            SwitchListTile(
+              title: const Text('Disponible',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+              value: disponible, activeColor: _kPurple,
+              onChanged: (v) => setD(() => disponible = v),
+            ),
+          ]),
         ),
       ),
     );
-  }
-
-  // ── Diálogos de categoría ─────────────────────────────────────────────────
-  void _mostrarDialogoAgregarCategoria() {
-    final nombreCtrl = TextEditingController();
-    String iconoSel = iconosDisponibles[0];
-    int orden = 0;
-    bool requiereCocina = true;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: const Text('➕ Agregar Categoría', style: TextStyle(color: Colors.white)),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _campo(nombreCtrl, 'Nombre', Icons.category),
-              const SizedBox(height: 14),
-              const Text('Selecciona un icono:',
-                  style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              _selectorIconos(iconoSel, (i) => setD(() => iconoSel = i)),
-              const SizedBox(height: 14),
-              TextField(
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Orden de aparición',
-                  labelStyle: TextStyle(color: Colors.white54),
-                  prefixIcon: Icon(Icons.sort, color: Colors.purple),
-                  border: OutlineInputBorder(),
-                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.purple)),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (v) => orden = int.tryParse(v) ?? 0,
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                title: const Text('Requiere cocina', style: TextStyle(color: Colors.white70)),
-                value: requiereCocina,
-                activeColor: Colors.purple,
-                onChanged: (v) => setD(() => requiereCocina = v),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar', style: TextStyle(color: Colors.white38))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple, foregroundColor: Colors.white),
-              onPressed: () async {
-                if (nombreCtrl.text.isEmpty) return;
-                await _categoriaService.agregarCategoria(CategoriaModel(
-                  id: '', nombre: nombreCtrl.text, icono: iconoSel,
-                  disponible: true, orden: orden, requiereCocina: requiereCocina,
-                ));
-                if (ctx.mounted) Navigator.pop(ctx);
-                _snack('✅ Categoría agregada', Colors.green);
-              },
-              child: const Text('Agregar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _mostrarDialogoEditarCategoria(CategoriaModel cat) {
-    final nombreCtrl = TextEditingController(text: cat.nombre);
-    String iconoSel = cat.icono;
-    int orden = cat.orden;
-    bool disponible = cat.disponible;
-    bool requiereCocina = cat.requiereCocina;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: const Text('✏️ Editar Categoría', style: TextStyle(color: Colors.white)),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _campo(nombreCtrl, 'Nombre', Icons.category),
-              const SizedBox(height: 14),
-              const Text('Icono:', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              _selectorIconos(iconoSel, (i) => setD(() => iconoSel = i)),
-              const SizedBox(height: 14),
-              TextField(
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Orden',
-                  labelStyle: TextStyle(color: Colors.white54),
-                  prefixIcon: Icon(Icons.sort, color: Colors.purple),
-                  border: OutlineInputBorder(),
-                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.purple)),
-                ),
-                keyboardType: TextInputType.number,
-                controller: TextEditingController(text: orden.toString()),
-                onChanged: (v) => orden = int.tryParse(v) ?? 0,
-              ),
-              SwitchListTile(
-                title: const Text('Visible', style: TextStyle(color: Colors.white70)),
-                value: disponible, activeColor: Colors.purple,
-                onChanged: (v) => setD(() => disponible = v),
-              ),
-              SwitchListTile(
-                title: const Text('Requiere cocina', style: TextStyle(color: Colors.white70)),
-                value: requiereCocina, activeColor: Colors.purple,
-                onChanged: (v) => setD(() => requiereCocina = v),
-              ),
-            ]),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancelar', style: TextStyle(color: Colors.white38))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple, foregroundColor: Colors.white),
-              onPressed: () async {
-                await _categoriaService.editarCategoria(
-                    cat.id,
-                    CategoriaModel(
-                      id: cat.id, nombre: nombreCtrl.text, icono: iconoSel,
-                      disponible: disponible, orden: orden, requiereCocina: requiereCocina,
-                    ));
-                if (ctx.mounted) Navigator.pop(ctx);
-                _snack('✅ Categoría actualizada', Colors.green);
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _confirmarEliminarCategoria(CategoriaModel cat) async {
-    final ok = await _confirmar('¿Eliminar la categoría "${cat.nombre}"?');
-    if (ok) {
-      await _categoriaService.eliminarCategoria(cat.id);
-      _snack('✅ Categoría eliminada', Colors.green);
-    }
-  }
-
-  void _confirmarEliminarProducto(ProductoModel p) async {
-    final ok = await _confirmar('¿Eliminar "${p.nombre}"?');
-    if (ok) {
-      // Eliminar imagen de Storage si existe
-      if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) {
-        try {
-          await FirebaseStorage.instance.refFromURL(p.imagenUrl!).delete();
-        } catch (_) {}
-      }
-      await _productoService.eliminarProducto(p.id);
-      _snack('✅ Producto eliminado', Colors.green);
-    }
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  Widget _campo(TextEditingController ctrl, String label, IconData icon,
-      {int maxLines = 1, TextInputType tipo = TextInputType.text}) {
-    return TextField(
-      controller: ctrl, keyboardType: tipo, maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white54),
-        prefixIcon: Icon(icon, color: Colors.purple),
-        border: const OutlineInputBorder(),
-        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-        focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.purple)),
-      ),
-    );
-  }
-
-  Widget _selectorIconos(String sel, void Function(String) onChange) {
-    return Wrap(
-      spacing: 8, runSpacing: 8,
-      children: iconosDisponibles.map((i) {
-        final isSel = i == sel;
-        return InkWell(
-          onTap: () => onChange(i),
-          child: Container(
-            width: 46, height: 46,
-            decoration: BoxDecoration(
-              color: isSel ? Colors.purple.withOpacity(0.25) : const Color(0xFF0F172A),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: isSel ? Colors.purple : Colors.white24, width: 2),
-            ),
-            child: Center(child: Text(i, style: const TextStyle(fontSize: 22))),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Future<bool> _confirmar(String mensaje) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF1E293B),
-            title: const Text('⚠️ Confirmar', style: TextStyle(color: Colors.white)),
-            content: Text(mensaje, style: const TextStyle(color: Colors.white70)),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancelar', style: TextStyle(color: Colors.white38))),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red, foregroundColor: Colors.white),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Eliminar'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  void _snack(String msg, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 }
 
-// ── Formulario de producto (widget separado) ──────────────────────────────────
-class _FormProducto extends StatefulWidget {
-  final String titulo;
-  final TextEditingController nombreCtrl, precioCtrl, descCtrl;
-  final List<CategoriaModel> categorias;
-  final String? catSel;
-  final XFile? imagenSel;
-  final String? imagenUrlActual;
-  final bool disponible;
-  final bool usaNombreEnCat;
-  final void Function(String?) onCatChanged;
-  final void Function(XFile) onImagenSel;
-  final void Function(bool)? onDisponibleChanged;
-  final Future<void> Function() onGuardar;
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED WIDGETS
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _FormProducto({
-    required this.titulo,
-    required this.nombreCtrl,
-    required this.precioCtrl,
-    required this.descCtrl,
-    required this.categorias,
-    required this.catSel,
-    required this.imagenSel,
-    required this.imagenUrlActual,
-    required this.onCatChanged,
-    required this.onImagenSel,
-    required this.onGuardar,
-    this.disponible = true,
-    this.usaNombreEnCat = false,
-    this.onDisponibleChanged,
-  });
+class _AdminDialog extends StatelessWidget {
+  final String titulo;
+  final Widget content;
+  final Future<void> Function() onGuardar;
+  const _AdminDialog({required this.titulo, required this.content, required this.onGuardar});
 
   @override
-  State<_FormProducto> createState() => _FormProductoState();
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: _kCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(titulo, style: const TextStyle(
+          color: Colors.white, fontWeight: FontWeight.bold)),
+      content: SingleChildScrollView(child: content),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white38))),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: _kPurple, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          onPressed: () async { await onGuardar(); },
+          child: const Text('Guardar', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
 }
 
-class _FormProductoState extends State<_FormProducto> {
-  final _picker = ImagePicker();
-  bool _guardando = false;
+class _Campo extends StatelessWidget {
+  final TextEditingController ctrl;
+  final String label;
+  final IconData icon;
+  final int maxLines;
+  final TextInputType tipo;
+  const _Campo({required this.ctrl, required this.label, required this.icon,
+      this.maxLines = 1, this.tipo = TextInputType.text});
 
-  Future<void> _seleccionarImagen() async {
-    final opcion = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: const Color(0xFF1E293B),
-      builder: (_) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.camera_alt, color: Colors.white70),
-            title: const Text('Tomar foto', style: TextStyle(color: Colors.white)),
-            onTap: () => Navigator.pop(context, 'camara'),
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: ctrl, keyboardType: tipo, maxLines: maxLines,
+    style: const TextStyle(color: Colors.white),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white54),
+      prefixIcon: Icon(icon, color: _kPurple),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.white24)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kPurple, width: 1.5)),
+    ),
+  );
+}
+
+class _IconPicker extends StatelessWidget {
+  final List<String> iconos;
+  final String sel;
+  final void Function(String) onChange;
+  const _IconPicker({required this.iconos, required this.sel, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8, runSpacing: 8,
+    children: iconos.map((i) {
+      final active = i == sel;
+      return GestureDetector(
+        onTap: () => onChange(i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: active ? _kPurple.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: active ? _kPurple : Colors.white12,
+                width: active ? 2 : 1),
           ),
-          ListTile(
-            leading: const Icon(Icons.photo_library, color: Colors.white70),
-            title: const Text('Elegir de galería', style: TextStyle(color: Colors.white)),
-            onTap: () => Navigator.pop(context, 'galeria'),
-          ),
-        ]),
-      ),
-    );
-    if (opcion == null) return;
-    final img = await _picker.pickImage(
-      source: opcion == 'camara' ? ImageSource.camera : ImageSource.gallery,
-      maxWidth: 800, maxHeight: 800, imageQuality: 85,
-    );
-    if (img != null) widget.onImagenSel(img);
-  }
+          child: Center(child: Text(i, style: const TextStyle(fontSize: 22))),
+        ),
+      );
+    }).toList(),
+  );
+}
+
+class _CatDropdown extends StatelessWidget {
+  final List<CategoriaModel> cats;
+  final String? val;
+  final bool useName;
+  final void Function(String?) onChanged;
+  const _CatDropdown({required this.cats, required this.val,
+      required this.onChanged, this.useName = false});
+
+  @override
+  Widget build(BuildContext context) => DropdownButtonFormField<String>(
+    dropdownColor: _kCard,
+    style: const TextStyle(color: Colors.white),
+    value: val,
+    decoration: InputDecoration(
+      labelText: 'Categoría',
+      labelStyle: const TextStyle(color: Colors.white54),
+      prefixIcon: const Icon(Icons.category, color: _kPurple),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.white24)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kPurple)),
+    ),
+    items: cats.map((c) => DropdownMenuItem(
+      value: useName ? c.nombre : c.id,
+      child: Row(children: [
+        Text(c.icono, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 8),
+        Text(c.nombre, style: const TextStyle(color: Colors.white)),
+      ]),
+    )).toList(),
+    onChanged: onChanged,
+  );
+}
+
+class _StatsBar extends StatelessWidget {
+  final List<_Stat> items;
+  const _StatsBar({required this.items});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          top: 20, left: 20, right: 20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E293B),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
-      child: SingleChildScrollView(
-        child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Handle
-          Center(child: Container(
-            width: 36, height: 4, margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.white12,
-                borderRadius: BorderRadius.circular(2)),
-          )),
-          Text(widget.titulo, style: const TextStyle(color: Colors.white,
-              fontWeight: FontWeight.bold, fontSize: 17)),
-          const SizedBox(height: 20),
-
-          // ── Selector de imagen ──────────────────────────
-          GestureDetector(
-            onTap: _seleccionarImagen,
-            child: Container(
-              width: double.infinity, height: 160,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color: Colors.purple.withOpacity(0.5),
-                    width: 2,
-                    style: widget.imagenSel == null && widget.imagenUrlActual == null
-                        ? BorderStyle.solid : BorderStyle.solid),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(13),
-                child: widget.imagenSel != null
-                    // Imagen recién seleccionada del dispositivo
-                    ? Stack(fit: StackFit.expand, children: [
-                        Image.file(File(widget.imagenSel!.path), fit: BoxFit.cover),
-                        Positioned(
-                          bottom: 8, right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.6),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(Icons.edit, color: Colors.white, size: 14),
-                              SizedBox(width: 4),
-                              Text('Cambiar', style: TextStyle(color: Colors.white, fontSize: 12)),
-                            ]),
-                          ),
-                        ),
-                      ])
-                    : widget.imagenUrlActual != null && widget.imagenUrlActual!.isNotEmpty
-                        // Imagen ya guardada en Firebase
-                        ? Stack(fit: StackFit.expand, children: [
-                            Image.network(widget.imagenUrlActual!, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _placeholderImagen()),
-                            Positioned(
-                              bottom: 8, right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.6),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Icon(Icons.edit, color: Colors.white, size: 14),
-                                  SizedBox(width: 4),
-                                  Text('Cambiar foto', style: TextStyle(color: Colors.white, fontSize: 12)),
-                                ]),
-                              ),
-                            ),
-                          ])
-                        // Sin imagen
-                        : _placeholderImagen(),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // ── Campos de texto ─────────────────────────────
-          _campoForm(widget.nombreCtrl, 'Nombre del producto *', Icons.fastfood),
-          const SizedBox(height: 12),
-          _campoForm(widget.descCtrl, 'Descripción', Icons.description, maxLines: 2),
-          const SizedBox(height: 12),
-          _campoForm(widget.precioCtrl, 'Precio *', Icons.attach_money,
-              tipo: TextInputType.number),
-          const SizedBox(height: 12),
-
-          // ── Dropdown categoría ──────────────────────────
-          DropdownButtonFormField<String>(
-            dropdownColor: const Color(0xFF1E293B),
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              labelText: 'Categoría *',
-              labelStyle: TextStyle(color: Colors.white54),
-              prefixIcon: Icon(Icons.category, color: Colors.purple),
-              border: OutlineInputBorder(),
-              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.purple)),
-            ),
-            value: widget.catSel,
-            items: widget.categorias.map((c) => DropdownMenuItem(
-              value: widget.usaNombreEnCat ? c.nombre : c.id,
-              child: Row(children: [
-                Text(c.icono, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 8),
-                Text(c.nombre, style: const TextStyle(color: Colors.white)),
-              ]),
-            )).toList(),
-            onChanged: widget.onCatChanged,
-          ),
-
-          // ── Switch disponible (solo al editar) ──────────
-          if (widget.onDisponibleChanged != null) ...[
+      child: Row(
+        children: items.expand<Widget>((s) => [
+          Expanded(child: Column(children: [
+            Icon(s.icon, color: s.color, size: 20),
             const SizedBox(height: 4),
-            SwitchListTile(
-              title: const Text('Disponible', style: TextStyle(color: Colors.white70)),
-              value: widget.disponible,
-              activeColor: Colors.purple,
-              onChanged: widget.onDisponibleChanged,
-              contentPadding: EdgeInsets.zero,
-            ),
-          ],
-
-          const SizedBox(height: 20),
-
-          // ── Botones ─────────────────────────────────────
-          Row(children: [
-            Expanded(child: OutlinedButton(
-              onPressed: () => Navigator.pop(context),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white38,
-                side: const BorderSide(color: Colors.white12),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Cancelar'),
-            )),
-            const SizedBox(width: 12),
-            Expanded(flex: 2, child: ElevatedButton(
-              onPressed: _guardando ? null : () async {
-                setState(() => _guardando = true);
-                await widget.onGuardar();
-                if (mounted) setState(() => _guardando = false);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: _guardando
-                  ? const SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('GUARDAR',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-            )),
-          ]),
-        ]),
+            Text(s.val, style: TextStyle(
+                color: s.color, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(s.label, style: const TextStyle(
+                color: Colors.white38, fontSize: 10)),
+          ])),
+          if (s != items.last)
+            Container(width: 1, height: 32, color: Colors.white12),
+        ]).toList(),
       ),
     );
   }
-
-  Widget _placeholderImagen() => Column(
-    mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.add_photo_alternate_outlined,
-          color: Colors.purple.withOpacity(0.6), size: 48),
-      const SizedBox(height: 10),
-      Text('Toca para agregar foto',
-          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14)),
-      const SizedBox(height: 4),
-      Text('Cámara o galería',
-          style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 12)),
-    ],
-  );
-
-  Widget _campoForm(TextEditingController ctrl, String label, IconData icon,
-      {int maxLines = 1, TextInputType tipo = TextInputType.text}) =>
-    TextField(
-      controller: ctrl, keyboardType: tipo, maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white54),
-        prefixIcon: Icon(icon, color: Colors.purple),
-        border: const OutlineInputBorder(),
-        enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-        focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.purple)),
-      ),
-    );
 }
 
-// ── Widgets auxiliares ────────────────────────────────────────────────────────
-class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
+class _Stat {
+  final String label, val;
+  final IconData icon;
+  final Color color;
+  const _Stat(this.label, this.val, this.icon, this.color);
+  bool operator ==(Object o) => o is _Stat && o.label == label;
+  int get hashCode => label.hashCode;
+}
+
+class _ChipTag extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _ChipTag(this.label, this.color);
   @override
   Widget build(BuildContext context) => Container(
-    height: 80,
-    decoration: BoxDecoration(color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(12)),
-    child: const Center(child: CircularProgressIndicator(color: Colors.purple, strokeWidth: 2)),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
+    ),
+    child: Text(label, style: TextStyle(
+        color: color, fontSize: 11, fontWeight: FontWeight.w600)),
   );
 }
 
 class _EmptyState extends StatelessWidget {
   final IconData icono;
-  final String mensaje, sub;
-  const _EmptyState({required this.icono, required this.mensaje, required this.sub});
+  final String msg, sub;
+  const _EmptyState({required this.icono, required this.msg, required this.sub});
   @override
   Widget build(BuildContext context) => Center(
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(icono, size: 100, color: Colors.white10),
+      Icon(icono, size: 64, color: Colors.white12),
       const SizedBox(height: 16),
-      Text(mensaje, style: const TextStyle(fontSize: 20,
-          color: Colors.white38, fontWeight: FontWeight.bold)),
+      Text(msg, style: const TextStyle(
+          color: Colors.white38, fontSize: 16, fontWeight: FontWeight.bold)),
       const SizedBox(height: 8),
-      Text(sub, style: const TextStyle(color: Colors.white24)),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Text(sub, textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white24, fontSize: 13)),
+      ),
     ]),
   );
 }
 
-class _StatData {
-  final String label, value;
-  final IconData icon;
-  final Color color;
-  const _StatData(this.label, this.value, this.icon, this.color);
-}
-
-class _StatsHeader extends StatelessWidget {
-  final List<_StatData> stats;
-  const _StatsHeader({required this.stats});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    color: const Color(0xFF0F172A),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: stats.map((s) => Expanded(
-        child: Column(children: [
-          Icon(s.icon, color: s.color, size: 28),
-          const SizedBox(height: 6),
-          Text(s.value, style: TextStyle(fontSize: 22,
-              fontWeight: FontWeight.bold, color: s.color)),
-          const SizedBox(height: 2),
-          Text(s.label, style: const TextStyle(fontSize: 12, color: Colors.white54)),
-        ]),
-      )).toList(),
+// ── Utilidades ────────────────────────────────────────────────────────────────
+Future<bool> _confirm(BuildContext ctx, String msg) async {
+  return await showDialog<bool>(
+    context: ctx,
+    builder: (_) => AlertDialog(
+      backgroundColor: _kCard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('⚠️ Confirmar',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      content: Text(msg, style: const TextStyle(color: Colors.white70)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white38))),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Eliminar'),
+        ),
+      ],
     ),
-  );
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Chip(this.label, this.color);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
-    ),
-    child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
-  );
+  ) ?? false;
 }

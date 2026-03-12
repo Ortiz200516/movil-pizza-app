@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../cliente/chat_page.dart';
 import '../services/launcher_service.dart';
 import '../services/auth_services.dart';
 import '../services/ubicacion_service.dart';
@@ -11,6 +10,7 @@ import '../services/notificacion_service.dart';
 import '../auth/login_page.dart';
 import '../models/pedido_model.dart';
 import '../pedidos/pedidos_service.dart';
+import '../cliente/chat_page.dart';
 
 // Colores del tema
 const _kBg    = Color(0xFF0F172A);
@@ -505,6 +505,16 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
 
             // ── Dirección ─────────────────────────────
             _DireccionCard(direccion: direccion, referencia: referencia),
+            const SizedBox(height: 10),
+
+            // ── Chat con cliente ──────────────────────
+            ChatBadge(
+              pedidoId:     widget.pedido.id,
+              clienteId:    widget.pedido.clienteId,
+              repartidorId: FirebaseAuth.instance.currentUser?.uid,
+              rolActual:    'repartidor',
+              nombreOtro:   widget.pedido.clienteNombre,
+            ),
             const SizedBox(height: 10),
 
             // ── Total ─────────────────────────────────

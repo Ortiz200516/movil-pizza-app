@@ -1,14 +1,18 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/producto_model.dart';
 import '../services/producto_service.dart';
 import '../carrito/carrito_provider.dart';
-import 'resenas_page.dart';
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ── Paleta ────────────────────────────────────────────────────────────────────
+const _kNaranja = Color(0xFFFF6B35);
+const _kBg      = Color(0xFF0F172A);
+const _kCard    = Color(0xFF1E293B);
+
 const List<Color> _paleta = [
   Color(0xFFFF6B35), Color(0xFFFFB800), Color(0xFF38BDF8),
   Color(0xFF818CF8), Color(0xFFFB7185), Color(0xFF4ADE80),
@@ -18,23 +22,21 @@ Color _colorPorIdx(int i) => _paleta[i % _paleta.length];
 
 Color _colorDeCat(String cat) {
   final n = cat.toLowerCase();
-  if (n.contains('pizza'))                              return const Color(0xFFFF6B35);
-  if (n.contains('hamburgues') || n.contains('burger')) return const Color(0xFFFFB800);
-  if (n.contains('cerveza') || n.contains('beer'))      return const Color(0xFF38BDF8);
-  if (n.contains('bebida') || n.contains('refresco'))   return const Color(0xFF818CF8);
-  if (n.contains('entrada') || n.contains('snack'))     return const Color(0xFFFB7185);
-  if (n.contains('ensalada'))                           return const Color(0xFF4ADE80);
-  if (n.contains('postre') || n.contains('helado'))     return const Color(0xFFF472B6);
-  if (n.contains('pollo') || n.contains('chicken'))     return const Color(0xFFFB7185);
-  if (n.contains('combo') || n.contains('promo'))       return const Color(0xFF34D399);
-  if (n.contains('desayuno'))                           return const Color(0xFFFBBF24);
+  if (n.contains('pizza'))                               return const Color(0xFFFF6B35);
+  if (n.contains('hamburgues') || n.contains('burger'))  return const Color(0xFFFFB800);
+  if (n.contains('cerveza') || n.contains('beer'))       return const Color(0xFF38BDF8);
+  if (n.contains('bebida') || n.contains('refresco'))    return const Color(0xFF818CF8);
+  if (n.contains('entrada') || n.contains('snack'))      return const Color(0xFFFB7185);
+  if (n.contains('ensalada'))                            return const Color(0xFF4ADE80);
+  if (n.contains('postre') || n.contains('helado'))      return const Color(0xFFF472B6);
+  if (n.contains('combo') || n.contains('promo'))        return const Color(0xFF34D399);
   return const Color(0xFFFF6B35);
 }
 
 String _capitalizar(String s) =>
     s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
-// ─── MENU PAGE ─────────────────────────────────────────────────────────────────
+// ── MenuPage ──────────────────────────────────────────────────────────────────
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
   @override
@@ -45,7 +47,15 @@ class _MenuPageState extends State<MenuPage> {
   final _service    = ProductoService();
   final _searchCtrl = TextEditingController();
   String? _catSel;
-  String  _query = '';
+  String  _query     = '';
+  List<ProductoModel> _cache = [];
+  bool _cacheLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarCache();
+  }
 
   @override
   void dispose() {
@@ -53,48 +63,58 @@ class _MenuPageState extends State<MenuPage> {
     super.dispose();
   }
 
-  String _saludo() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Buenos días';
-    if (h < 19) return 'Buenas tardes';
-    return 'Buenas noches';
+  // Caché local para modo offline
+  Future<void> _cargarCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw   = prefs.getString('menu_cache');
+      if (raw != null) {
+        final list = jsonDecode(raw) as List;
+        setState(() {
+          _cache = list.map((m) => ProductoModel.fromFirestore(
+              m['id'] ?? '', Map<String, dynamic>.from(m))).toList();
+          _cacheLoaded = true;
+        });
+      }
+    } catch (_) {}
   }
 
-  String _nombreUsuario() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user?.displayName != null && user!.displayName!.isNotEmpty)
-      return user.displayName!.split(' ').first;
-    return 'amigo';
+  Future<void> _guardarCache(List<ProductoModel> productos) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list  = productos.map((p) => {
+        'id': p.id, 'nombre': p.nombre, 'descripcion': p.descripcion,
+        'precio': p.precio, 'categoria': p.categoria,
+        'disponible': p.disponible, 'icono': p.icono,
+      }).toList();
+      await prefs.setString('menu_cache', jsonEncode(list));
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF0F172A),
+      color: _kBg,
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
 
-          // ── Header con botón reseñas ───────────────────────────────────────
+          // Header colapsable
           SliverAppBar(
-            backgroundColor: const Color(0xFF0F172A),
-            expandedHeight: 90,
+            backgroundColor: _kBg,
+            expandedHeight: 80,
             floating: true,
             snap: true,
             elevation: 0,
             automaticallyImplyLeading: false,
-            actions: [
-              _BotonResenas(),
-              const SizedBox(width: 12),
-            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
+                    colors: [Color(0xFF1A0A00), _kBg],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF1A0A00), Color(0xFF0F172A)],
                   ),
                 ),
                 child: Row(children: [
@@ -102,25 +122,24 @@ class _MenuPageState extends State<MenuPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('${_saludo()}, ${_nombreUsuario()} 👋',
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
-                              fontSize: 13)),
-                      const SizedBox(height: 2),
-                      const Text('¿Qué te apetece hoy?',
+                      const Text('Nuestro Menú',
                           style: TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
+                              fontSize: 22,
                               fontWeight: FontWeight.w900)),
+                      Text('Elige tu favorita 🍕',
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 12)),
                     ],
                   )),
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFF6B00).withOpacity(0.12),
+                      color: _kNaranja.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                          color: const Color(0xFFFF6B00).withOpacity(0.3)),
+                          color: _kNaranja.withValues(alpha: 0.3)),
                     ),
                     child: const Text('🍕', style: TextStyle(fontSize: 26)),
                   ),
@@ -129,10 +148,10 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // ── Buscador + chips sticky ────────────────────────────────────────
+          // Buscador + chips categorías (sticky)
           SliverPersistentHeader(
             pinned: true,
-            delegate: _SearchBarDelegate(
+            delegate: _SearchDelegate(
               query: _query,
               catSel: _catSel,
               searchCtrl: _searchCtrl,
@@ -149,17 +168,34 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // ── Grid de productos ──────────────────────────────────────────────
+          // Grid productos
           StreamBuilder<List<ProductoModel>>(
             stream: _service.obtenerProductos(),
             builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(
-                      color: Color(0xFFFF6B35))),
+
+              // Skeleton mientras carga (sin caché)
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !_cacheLoaded) {
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2, childAspectRatio: 0.72,
+                        crossAxisSpacing: 10, mainAxisSpacing: 10),
+                    delegate: SliverChildBuilderDelegate(
+                        (_, __) => const _SkeletonCard(), childCount: 6),
+                  ),
                 );
               }
-              var productos = snap.data ?? [];
+
+              var productos = snap.data ?? _cache;
+
+              // Guardar en caché si hay datos frescos
+              if (snap.data != null && snap.data!.isNotEmpty) {
+                _guardarCache(snap.data!);
+              }
+
+              // Filtros
               if (_catSel != null) {
                 productos = productos
                     .where((p) => p.categoria.trim() == _catSel!.trim())
@@ -174,18 +210,27 @@ class _MenuPageState extends State<MenuPage> {
                         p.categoria.toLowerCase().contains(q))
                     .toList();
               }
+
               if (productos.isEmpty) {
-                return SliverFillRemaining(child: _buildVacio());
+                return SliverFillRemaining(
+                  child: _EmptyState(
+                    catSel: _catSel,
+                    query: _query,
+                    onReset: () => setState(() {
+                      _catSel = null;
+                      _query = '';
+                      _searchCtrl.clear();
+                    }),
+                  ),
+                );
               }
+
               return SliverPadding(
                 padding: const EdgeInsets.fromLTRB(14, 8, 14, 100),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.72,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
+                      crossAxisCount: 2, childAspectRatio: 0.72,
+                      crossAxisSpacing: 10, mainAxisSpacing: 10),
                   delegate: SliverChildBuilderDelegate(
                     (_, i) => _TarjetaProducto(
                         producto: productos[i], index: i),
@@ -199,82 +244,10 @@ class _MenuPageState extends State<MenuPage> {
       ),
     );
   }
-
-  Widget _buildVacio() => Center(
-    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Text(_catSel != null ? '🔍' : '😕',
-          style: const TextStyle(fontSize: 56)),
-      const SizedBox(height: 14),
-      Text(
-        _catSel != null && _query.isEmpty
-            ? 'No hay productos en "$_catSel"'
-            : 'Sin resultados para "$_query"',
-        style: TextStyle(
-            color: Colors.white.withOpacity(0.45),
-            fontSize: 15,
-            fontWeight: FontWeight.w600),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 14),
-      TextButton.icon(
-        onPressed: () => setState(() {
-          _catSel = null;
-          _query = '';
-          _searchCtrl.clear();
-        }),
-        icon: const Icon(Icons.refresh, color: Color(0xFFFF6B35), size: 16),
-        label: const Text('Ver todo el menú',
-            style: TextStyle(
-                color: Color(0xFFFF6B35), fontWeight: FontWeight.w600)),
-      ),
-    ]),
-  );
 }
 
-// ─── BOTÓN RESEÑAS con promedio en tiempo real ────────────────────────────────
-class _BotonResenas extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('calificaciones').snapshots(),
-      builder: (context, snap) {
-        String label = '⭐ Reseñas';
-        if (snap.hasData && snap.data!.docs.isNotEmpty) {
-          final docs = snap.data!.docs;
-          final suma = docs.fold<int>(0, (acc, d) {
-            final data = d.data() as Map<String, dynamic>;
-            return acc + ((data['estrellas'] as num?)?.toInt() ?? 0);
-          });
-          final promedio = suma / docs.length;
-          label = '⭐ ${promedio.toStringAsFixed(1)}';
-        }
-        return GestureDetector(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const ResenasPage())),
-          child: Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFF6B00).withOpacity(0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: const Color(0xFFFF6B00).withOpacity(0.4)),
-            ),
-            child: Text(label,
-                style: const TextStyle(
-                    color: Color(0xFFFF6B00),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13)),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ─── DELEGATE BUSCADOR + CHIPS ─────────────────────────────────────────────────
-class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
+// ── Delegate buscador + chips ─────────────────────────────────────────────────
+class _SearchDelegate extends SliverPersistentHeaderDelegate {
   final String query;
   final String? catSel;
   final TextEditingController searchCtrl;
@@ -282,29 +255,33 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onClearQuery;
   final ValueChanged<String?> onCatSelected;
 
-  const _SearchBarDelegate({
+  const _SearchDelegate({
     required this.query, required this.catSel,
     required this.searchCtrl, required this.onQueryChanged,
     required this.onClearQuery, required this.onCatSelected,
   });
 
-  @override double get minExtent => 110;
-  @override double get maxExtent => 110;
-  @override bool shouldRebuild(_SearchBarDelegate old) =>
-      old.query != query || old.catSel != catSel;
+  @override double get minExtent => 108;
+  @override double get maxExtent => 108;
+  @override bool shouldRebuild(_SearchDelegate o) =>
+      o.query != query || o.catSel != catSel;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(BuildContext ctx, double shrink, bool overlaps) {
     return Container(
-      color: const Color(0xFF0F172A),
+      color: _kBg,
       child: Column(children: [
+        // Buscador
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
+              color: _kCard,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(
+                  color: query.isNotEmpty
+                      ? _kNaranja.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.08)),
             ),
             child: TextField(
               controller: searchCtrl,
@@ -313,30 +290,45 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
               decoration: InputDecoration(
                 hintText: 'Buscar pizzas, combos, bebidas...',
                 hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.25), fontSize: 14),
+                    color: Colors.white.withValues(alpha: 0.25),
+                    fontSize: 14),
                 prefixIcon: Icon(Icons.search_rounded,
-                    color: Colors.white.withOpacity(0.3), size: 20),
+                    color: query.isNotEmpty
+                        ? _kNaranja
+                        : Colors.white.withValues(alpha: 0.3),
+                    size: 20),
                 suffixIcon: query.isNotEmpty
                     ? IconButton(
                         icon: Icon(Icons.close,
-                            color: Colors.white.withOpacity(0.3), size: 18),
+                            color: Colors.white.withValues(alpha: 0.4),
+                            size: 18),
                         onPressed: onClearQuery)
                     : null,
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 13),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               ),
             ),
           ),
         ),
+
+        // Chips categorías
         if (query.isEmpty)
           SizedBox(
             height: 44,
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('categorias').snapshots(),
+                  .collection('categorias')
+                  .snapshots(),
               builder: (_, snap) {
-                if (!snap.hasData) return const SizedBox.shrink();
+                if (!snap.hasData) {
+                  return ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    children: List.generate(4,
+                        (_) => const _SkeletonChip()),
+                  );
+                }
                 final docs = snap.data!.docs
                     .where((d) {
                       final data = d.data() as Map<String, dynamic>;
@@ -349,14 +341,17 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
                     return ((da['orden'] ?? 999) as int)
                         .compareTo((db['orden'] ?? 999) as int);
                   });
+
                 return ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   children: [
-                    _CatChip(label: '🍽️  Todo',
-                        color: const Color(0xFFFF6B35),
-                        selected: catSel == null,
-                        onTap: () => onCatSelected(null)),
+                    _CatChip(
+                      label: '🍽️  Todo',
+                      color: _kNaranja,
+                      selected: catSel == null,
+                      onTap: () => onCatSelected(null),
+                    ),
                     ...List.generate(docs.length, (i) {
                       final d = docs[i].data() as Map<String, dynamic>;
                       final nombre = (d['nombre'] as String? ?? '').trim();
@@ -379,12 +374,15 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-// ─── CHIP ──────────────────────────────────────────────────────────────────────
+// ── Chip de categoría ─────────────────────────────────────────────────────────
 class _CatChip extends StatelessWidget {
-  final String label; final Color color;
-  final bool selected; final VoidCallback onTap;
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
   const _CatChip({required this.label, required this.color,
       required this.selected, required this.onTap});
+
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -393,35 +391,116 @@ class _CatChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: selected ? color.withOpacity(0.18) : const Color(0xFF1E293B),
+        color: selected ? color.withValues(alpha: 0.18) : _kCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: selected ? color.withOpacity(0.75) : Colors.white.withOpacity(0.07),
-          width: 1.5),
+            color: selected
+                ? color.withValues(alpha: 0.75)
+                : Colors.white.withValues(alpha: 0.07),
+            width: 1.5),
         boxShadow: selected
-            ? [BoxShadow(color: color.withOpacity(0.18), blurRadius: 8)]
+            ? [BoxShadow(color: color.withValues(alpha: 0.18), blurRadius: 8)]
             : null,
       ),
-      child: Text(label, style: TextStyle(
-        color: selected ? color : Colors.white.withOpacity(0.4),
-        fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-        fontSize: 12, letterSpacing: 0.2,
-      )),
+      child: Text(label,
+          style: TextStyle(
+              color: selected ? color : Colors.white.withValues(alpha: 0.4),
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+              fontSize: 12)),
     ),
   );
 }
 
-// ─── TARJETA PRODUCTO ──────────────────────────────────────────────────────────
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+class _SkeletonCard extends StatefulWidget {
+  const _SkeletonCard();
+  @override
+  State<_SkeletonCard> createState() => _SkeletonCardState();
+}
+
+class _SkeletonCardState extends State<_SkeletonCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.3, end: 0.7).animate(_ctrl);
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(children: [
+          Expanded(flex: 5, child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: _anim.value * 0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+          )),
+          Expanded(flex: 3, child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              Container(height: 12, width: double.infinity,
+                  decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: _anim.value * 0.1),
+                      borderRadius: BorderRadius.circular(6))),
+              Container(height: 10, width: 80,
+                  decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: _anim.value * 0.06),
+                      borderRadius: BorderRadius.circular(6))),
+              Container(height: 10, width: 60,
+                  decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: _anim.value * 0.08),
+                      borderRadius: BorderRadius.circular(6))),
+            ]),
+          )),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SkeletonChip extends StatelessWidget {
+  const _SkeletonChip();
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 90, height: 34,
+    margin: const EdgeInsets.only(right: 8),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(20),
+    ),
+  );
+}
+
+// ── Tarjeta producto ──────────────────────────────────────────────────────────
 class _TarjetaProducto extends StatefulWidget {
-  final ProductoModel producto; final int index;
+  final ProductoModel producto;
+  final int index;
   const _TarjetaProducto({required this.producto, required this.index});
-  @override State<_TarjetaProducto> createState() => _TarjetaProductoState();
+  @override
+  State<_TarjetaProducto> createState() => _TarjetaProductoState();
 }
 
 class _TarjetaProductoState extends State<_TarjetaProducto>
     with SingleTickerProviderStateMixin {
   late AnimationController _bounceCtrl;
   late Animation<double> _bounceAnim;
+  int _cantEnCarrito = 0;
 
   @override
   void initState() {
@@ -437,15 +516,22 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
     ]).animate(_bounceCtrl);
   }
 
-  @override void dispose() { _bounceCtrl.dispose(); super.dispose(); }
+  @override
+  void dispose() {
+    _bounceCtrl.dispose();
+    super.dispose();
+  }
 
   void _agregarRapido() {
     HapticFeedback.lightImpact();
     _bounceCtrl.forward(from: 0);
+    setState(() => _cantEnCarrito++);
     Provider.of<CarritoProvider>(context, listen: false).agregarProducto({
-      'id': widget.producto.id, 'nombre': widget.producto.nombre,
-      'precio': widget.producto.precio, 'categoria': widget.producto.categoria,
-      'icono': widget.producto.icono,
+      'id':        widget.producto.id,
+      'nombre':    widget.producto.nombre,
+      'precio':    widget.producto.precio,
+      'categoria': widget.producto.categoria,
+      'icono':     widget.producto.icono,
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Row(children: [
@@ -464,7 +550,8 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
 
   void _verDetalle() {
     showModalBottomSheet(
-      context: context, isScrollControlled: true,
+      context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _DetalleSheet(producto: widget.producto),
     );
@@ -474,6 +561,7 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
   Widget build(BuildContext context) {
     final color = _colorDeCat(widget.producto.categoria);
     final icono = widget.producto.icono;
+
     return GestureDetector(
       onTap: _verDetalle,
       child: AnimatedBuilder(
@@ -482,92 +570,113 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
             Transform.scale(scale: _bounceAnim.value, child: child),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
+            color: _kCard,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: color.withOpacity(0.2), width: 1.5),
-            boxShadow: [BoxShadow(color: color.withOpacity(0.07),
-                blurRadius: 14, offset: const Offset(0, 4))],
+            border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                  color: color.withValues(alpha: 0.07),
+                  blurRadius: 14, offset: const Offset(0, 4)),
+            ],
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              flex: 5,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.08),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+            // Área imagen/emoji
+            Expanded(flex: 5, child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Stack(children: [
+                Center(child: Text(icono,
+                    style: const TextStyle(fontSize: 52))),
+
+                // Badge categoría
+                Positioned(top: 8, left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6)),
+                    child: Text(_capitalizar(widget.producto.categoria),
+                        style: TextStyle(color: color, fontSize: 9,
+                            fontWeight: FontWeight.w800)),
+                  ),
                 ),
-                child: Stack(children: [
-                  // Imagen o emoji
-                  Positioned.fill(child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: widget.producto.imagenUrl != null &&
-                            widget.producto.imagenUrl!.isNotEmpty
-                        ? Image.network(widget.producto.imagenUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Center(
-                                child: Text(icono,
-                                    style: const TextStyle(fontSize: 52))))
-                        : Center(child: Text(icono,
-                            style: const TextStyle(fontSize: 52))),
-                  )),
-                  // Badge categoría
-                  Positioned(top: 8, left: 8,
+
+                // Badge cantidad en carrito
+                if (_cantEnCarrito > 0)
+                  Positioned(top: 8, right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(6)),
-                      child: Text(_capitalizar(widget.producto.categoria),
-                          style: TextStyle(color: color, fontSize: 9,
-                              fontWeight: FontWeight.w800, letterSpacing: 0.3)),
+                      width: 22, height: 22,
+                      decoration: const BoxDecoration(
+                          color: _kNaranja, shape: BoxShape.circle),
+                      child: Center(child: Text('$_cantEnCarrito',
+                          style: const TextStyle(color: Colors.white,
+                              fontSize: 10, fontWeight: FontWeight.bold))),
                     ),
                   ),
-                  // Mini rating
-                  Positioned(top: 8, right: 8,
-                      child: _MiniRating()),
-                  if (!widget.producto.disponible)
-                    Positioned.fill(child: Container(
+
+                // Overlay no disponible
+                if (!widget.producto.disponible)
+                  Positioned.fill(
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
-                      child: const Center(child: Text('NO DISPONIBLE',
-                          style: TextStyle(color: Colors.white54, fontSize: 10,
-                              fontWeight: FontWeight.bold, letterSpacing: 1))),
-                    )),
-                ]),
-              ),
-            ),
-            Expanded(
-              flex: 3,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(widget.producto.nombre,
-                      style: const TextStyle(color: Colors.white,
-                          fontWeight: FontWeight.w700, fontSize: 12, height: 1.2),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text('\$${widget.producto.precio.toStringAsFixed(2)}',
-                        style: TextStyle(color: color, fontSize: 15,
-                            fontWeight: FontWeight.w900, letterSpacing: -0.3)),
-                    if (widget.producto.disponible)
-                      GestureDetector(
-                        onTap: _agregarRapido,
-                        child: Container(
-                          width: 30, height: 30,
-                          decoration: BoxDecoration(
-                              color: color.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(9),
-                              border: Border.all(color: color.withOpacity(0.5), width: 1.5)),
-                          child: Icon(Icons.add, color: color, size: 16),
-                        ),
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16))),
+                      child: const Center(
+                        child: Text('NO DISPONIBLE',
+                            style: TextStyle(color: Colors.white54,
+                                fontSize: 10, fontWeight: FontWeight.bold,
+                                letterSpacing: 1)),
                       ),
-                  ]),
+                    ),
+                  ),
+              ]),
+            )),
+
+            // Info + botón agregar
+            Expanded(flex: 3, child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                Text(widget.producto.nombre,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
+                Row(children: [
+                  Expanded(child: Text(
+                    '\$${widget.producto.precio.toStringAsFixed(2)}',
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14),
+                  )),
+                  if (widget.producto.disponible)
+                    GestureDetector(
+                      onTap: _agregarRapido,
+                      child: Container(
+                        width: 30, height: 30,
+                        decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.18),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: color.withValues(alpha: 0.4))),
+                        child: Icon(Icons.add, color: color, size: 18),
+                      ),
+                    ),
                 ]),
-              ),
-            ),
+              ]),
+            )),
           ]),
         ),
       ),
@@ -575,275 +684,161 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
   }
 }
 
-// ─── MINI RATING badge ────────────────────────────────────────────────────────
-class _MiniRating extends StatelessWidget {
-  const _MiniRating();
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('calificaciones').limit(50).snapshots(),
-      builder: (context, snap) {
-        if (!snap.hasData || snap.data!.docs.isEmpty) return const SizedBox.shrink();
-        final docs = snap.data!.docs;
-        final suma = docs.fold<int>(0, (acc, d) {
-          final data = d.data() as Map<String, dynamic>;
-          return acc + ((data['estrellas'] as num?)?.toInt() ?? 0);
-        });
-        final promedio = suma / docs.length;
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.55),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Text('⭐', style: TextStyle(fontSize: 9)),
-            const SizedBox(width: 2),
-            Text(promedio.toStringAsFixed(1),
-                style: const TextStyle(color: Colors.white,
-                    fontSize: 10, fontWeight: FontWeight.bold)),
-          ]),
-        );
-      },
-    );
-  }
-}
-
-// ─── SHEET DE DETALLE ──────────────────────────────────────────────────────────
-class _DetalleSheet extends StatefulWidget {
+// ── Bottom sheet detalle ──────────────────────────────────────────────────────
+class _DetalleSheet extends StatelessWidget {
   final ProductoModel producto;
   const _DetalleSheet({required this.producto});
-  @override State<_DetalleSheet> createState() => _DetalleSheetState();
-}
-
-class _DetalleSheetState extends State<_DetalleSheet> {
-  int _cantidad = 1;
-  String? _tamanoSel;
-  final _notasCtrl = TextEditingController();
-  @override void dispose() { _notasCtrl.dispose(); super.dispose(); }
-
-  double get _precioFinal {
-    double p = widget.producto.precio;
-    if (_tamanoSel == 'grande')   p += 2.0;
-    if (_tamanoSel == 'mediana')  p += 1.0;
-    if (_tamanoSel == 'familiar') p += 4.0;
-    return p * _cantidad;
-  }
 
   @override
   Widget build(BuildContext context) {
-    final color    = _colorDeCat(widget.producto.categoria);
-    final opciones = widget.producto.opciones;
-    final tamanos  = opciones?['tamanios'] as List?
-        ?? opciones?['tamaños'] as List?;
+    final color = _colorDeCat(producto.categoria);
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E293B),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 14, 24, 34),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(child: Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 20),
-          Row(children: [
-            // Imagen del producto
-            Container(
-              width: 84, height: 84,
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      maxChildSize: 0.85,
+      minChildSize: 0.4,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: ListView(
+          controller: ctrl,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          children: [
+            Center(child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40, height: 4,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: color.withOpacity(0.3))),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(17),
-                child: widget.producto.imagenUrl != null &&
-                        widget.producto.imagenUrl!.isNotEmpty
-                    ? Image.network(widget.producto.imagenUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(child: Text(
-                            widget.producto.icono,
-                            style: const TextStyle(fontSize: 46))))
-                    : Center(child: Text(widget.producto.icono,
-                        style: const TextStyle(fontSize: 46))),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Text(_capitalizar(widget.producto.categoria),
-                    style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
-              ),
-              const SizedBox(height: 6),
-              Text(widget.producto.nombre,
-                  style: const TextStyle(color: Colors.white,
-                      fontSize: 20, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Row(children: [
-                Text('\$${widget.producto.precio.toStringAsFixed(2)}',
-                    style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w900)),
-                const Spacer(),
-                // Botón ver reseñas
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const ResenasPage()));
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF6B00).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFF6B00).withOpacity(0.3)),
-                    ),
-                    child: const Text('Ver reseñas',
-                        style: TextStyle(color: Color(0xFFFF6B00),
-                            fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ]),
-            ])),
-          ]),
-          if (widget.producto.descripcion.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(2)),
+            )),
+
+            // Emoji grande
+            Center(child: Container(
+              width: 100, height: 100,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withOpacity(0.06))),
-              child: Text(widget.producto.descripcion,
-                  style: TextStyle(color: Colors.white.withOpacity(0.5),
-                      fontSize: 13, height: 1.5)),
-            ),
-          ],
-          if (tamanos != null && tamanos.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _labelSeccion('Tamaño'),
-            const SizedBox(height: 10),
-            Wrap(spacing: 8, children: tamanos.map<Widget>((t) {
-              final sel = _tamanoSel == t.toString();
-              return GestureDetector(
-                onTap: () => setState(() => _tamanoSel = t.toString()),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: sel ? color.withOpacity(0.18) : const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: sel ? color : Colors.white.withOpacity(0.1), width: 1.5)),
-                  child: Text(t.toString(), style: TextStyle(
-                      color: sel ? color : Colors.white.withOpacity(0.5),
-                      fontWeight: FontWeight.w700, fontSize: 13)),
-                ),
-              );
-            }).toList()),
-          ],
-          const SizedBox(height: 20),
-          _labelSeccion('Notas especiales'),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white.withOpacity(0.07))),
-            child: TextField(
-              controller: _notasCtrl,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Sin cebolla, bien cocido, sin sal...',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.22), fontSize: 13),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _labelSeccion('Cantidad'),
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.1)),
+              child: Center(child: Text(producto.icono,
+                  style: const TextStyle(fontSize: 56))),
+            )),
+            const SizedBox(height: 16),
+
+            // Nombre y precio
             Row(children: [
-              _BtnCantidad(icono: Icons.remove, color: color,
-                  onTap: _cantidad > 1 ? () => setState(() => _cantidad--) : null),
-              SizedBox(width: 48, child: Center(child: Text('$_cantidad',
+              Expanded(child: Text(producto.nombre,
                   style: const TextStyle(color: Colors.white,
-                      fontSize: 20, fontWeight: FontWeight.w900)))),
-              _BtnCantidad(icono: Icons.add, color: color,
-                  onTap: () => setState(() => _cantidad++)),
+                      fontWeight: FontWeight.w900, fontSize: 20))),
+              Text('\$${producto.precio.toStringAsFixed(2)}',
+                  style: TextStyle(color: color,
+                      fontWeight: FontWeight.w900, fontSize: 22)),
             ]),
-          ]),
-          const SizedBox(height: 24),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.mediumImpact();
-              Provider.of<CarritoProvider>(context, listen: false).agregarProducto({
-                'id': widget.producto.id, 'nombre': widget.producto.nombre,
-                'precio': widget.producto.precio, 'categoria': widget.producto.categoria,
-                'icono': widget.producto.icono, 'cantidad': _cantidad,
-                if (_tamanoSel != null) 'opcionesSeleccionadas': {'tamano': _tamanoSel},
-                if (_notasCtrl.text.isNotEmpty) 'notasEspeciales': _notasCtrl.text,
-                'opcionesKey': '${widget.producto.id}_$_tamanoSel',
-              });
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.pop(context);
-              messenger.showSnackBar(SnackBar(
-                content: Text('${widget.producto.icono} ${widget.producto.nombre} x$_cantidad agregado'),
-                backgroundColor: _colorDeCat(widget.producto.categoria),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-              ));
-            },
-            child: Container(
-              height: 58,
+
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color, color.withOpacity(0.75)]),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: color.withOpacity(0.35),
-                    blurRadius: 18, offset: const Offset(0, 6))],
-              ),
-              child: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
-                Text('Agregar  •  \$${_precioFinal.toStringAsFixed(2)}',
-                    style: const TextStyle(color: Colors.white,
-                        fontSize: 16, fontWeight: FontWeight.w800)),
-              ])),
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Text(_capitalizar(producto.categoria),
+                  style: TextStyle(color: color, fontSize: 11,
+                      fontWeight: FontWeight.bold)),
             ),
-          ),
-        ]),
+            const SizedBox(height: 14),
+
+            if (producto.descripcion.isNotEmpty) ...[
+              Text(producto.descripcion,
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 14, height: 1.6)),
+              const SizedBox(height: 16),
+            ],
+
+            if (!producto.disponible)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.2)),
+                ),
+                child: const Row(children: [
+                  Text('⛔', style: TextStyle(fontSize: 14)),
+                  SizedBox(width: 8),
+                  Text('No disponible en este momento',
+                      style: TextStyle(color: Colors.red, fontSize: 13)),
+                ]),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Provider.of<CarritoProvider>(context, listen: false)
+                      .agregarProducto({
+                    'id': producto.id, 'nombre': producto.nombre,
+                    'precio': producto.precio, 'categoria': producto.categoria,
+                    'icono': producto.icono,
+                  });
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('${producto.nombre} agregado al carrito 🛒',
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    backgroundColor: color,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    duration: const Duration(seconds: 2),
+                  ));
+                },
+                icon: const Icon(Icons.add_shopping_cart, size: 18),
+                label: const Text('Agregar al carrito',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _labelSeccion(String texto) => Text(texto,
-      style: TextStyle(color: Colors.white.withOpacity(0.5),
-          fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2));
 }
 
-class _BtnCantidad extends StatelessWidget {
-  final IconData icono; final Color color; final VoidCallback? onTap;
-  const _BtnCantidad({required this.icono, required this.color, this.onTap});
+// ── Estado vacío ──────────────────────────────────────────────────────────────
+class _EmptyState extends StatelessWidget {
+  final String? catSel;
+  final String query;
+  final VoidCallback onReset;
+  const _EmptyState({this.catSel, required this.query, required this.onReset});
+
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: 36, height: 36,
-      decoration: BoxDecoration(
-        color: onTap != null ? color.withOpacity(0.14) : Colors.white.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(
-            color: onTap != null ? color.withOpacity(0.45) : Colors.white.withOpacity(0.05))),
-      child: Icon(icono,
-          color: onTap != null ? color : Colors.white.withOpacity(0.15), size: 18),
-    ),
+  Widget build(BuildContext context) => Center(
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Text(catSel != null ? '🔍' : '😕',
+          style: const TextStyle(fontSize: 56)),
+      const SizedBox(height: 14),
+      Text(
+        catSel != null && query.isEmpty
+            ? 'No hay productos en "$catSel"'
+            : 'Sin resultados para "$query"',
+        style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 15, fontWeight: FontWeight.w600),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: 14),
+      TextButton.icon(
+        onPressed: onReset,
+        icon: const Icon(Icons.refresh, color: _kNaranja, size: 16),
+        label: const Text('Ver todo el menú',
+            style: TextStyle(color: _kNaranja, fontWeight: FontWeight.w600)),
+      ),
+    ]),
   );
 }

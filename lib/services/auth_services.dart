@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-import '../services/notificacion_service.dart';
+import 'notificacion_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-
 
   /// 🔐 LOGIN Y DEVUELVE EL ROL DEL USUARIO
   Future<String> login(String email, String password) async {
@@ -19,10 +17,12 @@ class AuthService {
       final uid = cred.user!.uid;
 
       final doc = await _db.collection('users').doc(uid).get();
+
       if (!doc.exists) {
         throw Exception('Usuario sin rol asignado en Firestore');
       }
-      
+
+      // Guardar token FCM para notificaciones push
       await NotificacionService().guardarToken(uid);
 
       return doc['rol'] as String;
@@ -30,7 +30,6 @@ class AuthService {
       throw Exception('Error al iniciar sesión: $e');
     }
   }
-
 
   /// 📝 REGISTRO DE USUARIO CON CÉDULA Y PAÍS
   Future<void> register({
@@ -43,19 +42,16 @@ class AuthService {
     required String pais,
   }) async {
     try {
-      // Verificar si la cédula ya existe
       final existeCedula = await verificarCedulaExistente(cedula, pais);
       if (existeCedula) {
         throw Exception('Esta cédula ya está registrada');
       }
 
-      // Crear usuario en Firebase Auth
       final UserCredential cred = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Guardar información adicional en Firestore
       await _db.collection('users').doc(cred.user!.uid).set({
         'email': email,
         'rol': rol,
@@ -79,14 +75,13 @@ class AuthService {
           .where('cedula', isEqualTo: cedula)
           .where('pais', isEqualTo: pais)
           .get();
-
       return query.docs.isNotEmpty;
     } catch (e) {
       return false;
     }
   }
 
-  /// 🎭 OBTENER ROL DE UN UID (para splash con sesión activa)
+  /// 🎭 OBTENER ROL DE UN UID
   Future<String> obtenerRol(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists) throw Exception('Usuario sin rol');
