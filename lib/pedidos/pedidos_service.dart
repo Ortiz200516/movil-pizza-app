@@ -7,7 +7,8 @@ class PedidoService {
   final _db   = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
-  // ── Crear pedido ─────────────────────────────────────────────
+  // ── Crear pedido ───────────────────────────────────────────────────────────
+  // tipoPedido: 'mesa' | 'domicilio' | 'retirar'
   Future<PedidoModel?> crearPedido({
     required List<Map<String, dynamic>> items,
     required double subtotal,
@@ -24,13 +25,15 @@ class PedidoService {
 
       final userDoc  = await _db.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
-      final nombre   = userData['nombres'] ?? userData['nombre'] ?? user.email ?? 'Cliente';
+      final nombre   = userData['nombres'] ?? userData['nombre']
+                       ?? user.email ?? 'Cliente';
       final telefono = userData['telefono'];
 
       final pedido = PedidoModel(
         id: '', clienteId: user.uid, clienteNombre: nombre,
         clienteTelefono: telefono, clienteEmail: user.email,
-        items: items, subtotal: subtotal, impuesto: subtotal * 0.15, total: total,
+        items: items, subtotal: subtotal, impuesto: subtotal * 0.15,
+        total: total,
         tipoPedido: tipoPedido, estado: 'Pendiente', fecha: DateTime.now(),
         direccionEntrega: direccionEntrega, numeroMesa: numeroMesa,
         notasEspeciales: notasEspeciales, metodoPago: metodoPago,
@@ -38,10 +41,16 @@ class PedidoService {
 
       final ref = await _db.collection('pedidos').add(pedido.toMap());
 
-      // 🔔 Notificar al cocinero que llegó un nuevo pedido
-      final desc = tipoPedido == 'mesa'
-          ? 'Mesa $numeroMesa · \$${total.toStringAsFixed(2)}'
-          : 'Domicilio · \$${total.toStringAsFixed(2)}';
+      // 🔔 Descripción del pedido para notificación al cocinero
+      final String desc;
+      if (tipoPedido == 'mesa') {
+        desc = '🍽️ Mesa $numeroMesa · \$${total.toStringAsFixed(2)}';
+      } else if (tipoPedido == 'retirar') {
+        desc = '🏃 Para retirar · \$${total.toStringAsFixed(2)}';
+      } else {
+        desc = '🛵 Domicilio · \$${total.toStringAsFixed(2)}';
+      }
+
       await NotificacionService.notificarRol(
         rol: 'cocinero',
         titulo: '🍕 Nuevo pedido de $nombre',
@@ -58,7 +67,7 @@ class PedidoService {
     }
   }
 
-  // ── Streams ──────────────────────────────────────────────────
+  // ── Streams ────────────────────────────────────────────────────────────────
   Stream<List<PedidoModel>> obtenerMisPedidos() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return Stream.value([]);
@@ -66,27 +75,40 @@ class PedidoService {
         .where('clienteId', isEqualTo: uid)
         .orderBy('fecha', descending: true)
         .snapshots()
-        .map((s) => s.docs.map((d) => PedidoModel.fromFirestore(d.id, d.data())).toList());
+        .map((s) => s.docs
+            .map((d) => PedidoModel.fromFirestore(d.id, d.data()))
+            .toList());
   }
 
   Stream<List<PedidoModel>> obtenerTodosPedidos() =>
-      _db.collection('pedidos').orderBy('fecha', descending: true).snapshots()
-          .map((s) => s.docs.map((d) => PedidoModel.fromFirestore(d.id, d.data())).toList());
+      _db.collection('pedidos')
+          .orderBy('fecha', descending: true)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => PedidoModel.fromFirestore(d.id, d.data()))
+              .toList());
 
   Stream<List<PedidoModel>> obtenerPedidosActivos() =>
       _db.collection('pedidos')
-          .where('estado', whereIn: ['Pendiente', 'Preparando', 'Listo', 'En camino'])
+          .where('estado',
+              whereIn: ['Pendiente', 'Preparando', 'Listo', 'En camino'])
           .snapshots()
           .map((s) {
-            final l = s.docs.map((d) => PedidoModel.fromFirestore(d.id, d.data())).toList();
+            final l = s.docs
+                .map((d) => PedidoModel.fromFirestore(d.id, d.data()))
+                .toList();
             l.sort((a, b) => a.fecha.compareTo(b.fecha));
             return l;
           });
 
   Stream<List<PedidoModel>> obtenerPedidosPorEstado(String estado) =>
-      _db.collection('pedidos').where('estado', isEqualTo: estado).snapshots()
+      _db.collection('pedidos')
+          .where('estado', isEqualTo: estado)
+          .snapshots()
           .map((s) {
-            final l = s.docs.map((d) => PedidoModel.fromFirestore(d.id, d.data())).toList();
+            final l = s.docs
+                .map((d) => PedidoModel.fromFirestore(d.id, d.data()))
+                .toList();
             l.sort((a, b) => a.fecha.compareTo(b.fecha));
             return l;
           });
@@ -97,7 +119,9 @@ class PedidoService {
           .where('estado', whereIn: ['Pendiente', 'Preparando', 'Listo'])
           .snapshots()
           .map((s) {
-            final l = s.docs.map((d) => PedidoModel.fromFirestore(d.id, d.data())).toList();
+            final l = s.docs
+                .map((d) => PedidoModel.fromFirestore(d.id, d.data()))
+                .toList();
             l.sort((a, b) => a.fecha.compareTo(b.fecha));
             return l;
           });
@@ -108,12 +132,20 @@ class PedidoService {
           .where('estado', whereIn: ['Listo', 'En camino'])
           .snapshots()
           .map((s) {
-            final l = s.docs.map((d) => PedidoModel.fromFirestore(d.id, d.data())).toList();
+            final l = s.docs
+                .map((d) => PedidoModel.fromFirestore(d.id, d.data()))
+                .toList();
             l.sort((a, b) => a.fecha.compareTo(b.fecha));
             return l;
           });
 
-  // ── Actualizar estado + notificaciones automáticas ───────────
+  // ── Actualizar estado + notificaciones automáticas ─────────────────────────
+  // FIX MESA: Cuando tipoPedido == 'mesa' y nuevoEstado == 'Entregado',
+  // el query de mesas ocupadas filtra por estados ['Pendiente','Preparando','Listo'].
+  // Al pasar a 'Entregado' el pedido sale del query y la mesa queda libre
+  // automáticamente. No es necesario actualizar el campo 'ocupada' en la
+  // colección 'mesas'. PERO sí debemos asegurarnos de que el mesero use
+  // SIEMPRE actualizarEstado con 'Entregado' (no 'Cancelado' ni otro).
   Future<bool> actualizarEstado(String pedidoId, String nuevoEstado) async {
     try {
       await _db.collection('pedidos').doc(pedidoId).update({
@@ -121,14 +153,12 @@ class PedidoService {
         'actualizadoEn': FieldValue.serverTimestamp(),
       });
 
-      // Leer pedido para saber a quién notificar
-      final doc    = await _db.collection('pedidos').doc(pedidoId).get();
+      final doc = await _db.collection('pedidos').doc(pedidoId).get();
       if (!doc.exists) return true;
       final pedido = PedidoModel.fromFirestore(doc.id, doc.data()!);
 
       switch (nuevoEstado) {
         case 'Preparando':
-          // Notificar al cliente: su pedido está en cocina
           await NotificacionService.notificarUsuario(
             uid: pedido.clienteId,
             titulo: '👨‍🍳 ¡Tu pedido está en preparación!',
@@ -140,11 +170,19 @@ class PedidoService {
 
         case 'Listo':
           if (pedido.tipoPedido == 'domicilio') {
-            // Notificar a repartidores disponibles
             await NotificacionService.notificarRol(
               rol: 'repartidor',
               titulo: '✅ Pedido listo para recoger',
               cuerpo: '${pedido.clienteNombre} · \$${pedido.total.toStringAsFixed(2)}',
+              tipo: 'listo',
+              datos: {'pedidoId': pedidoId},
+            );
+          } else if (pedido.tipoPedido == 'retirar') {
+            // Notificar al cliente que puede pasar a retirar
+            await NotificacionService.notificarUsuario(
+              uid: pedido.clienteId,
+              titulo: '✅ ¡Tu pedido está listo!',
+              cuerpo: 'Puedes pasar a retirarlo en el local.',
               tipo: 'listo',
               datos: {'pedidoId': pedidoId},
             );
@@ -157,7 +195,6 @@ class PedidoService {
               tipo: 'listo',
               datos: {'pedidoId': pedidoId},
             );
-            // Y al cliente
             await NotificacionService.notificarUsuario(
               uid: pedido.clienteId,
               titulo: '✅ ¡Tu pedido está listo!',
@@ -168,7 +205,6 @@ class PedidoService {
           break;
 
         case 'En camino':
-          // Notificar al cliente que el repartidor ya salió
           await NotificacionService.notificarUsuario(
             uid: pedido.clienteId,
             titulo: '🛵 ¡Tu pedido está en camino!',
@@ -179,11 +215,25 @@ class PedidoService {
           break;
 
         case 'Entregado':
+          // ── MESA: al pasar a Entregado el pedido deja de aparecer en el
+          //    query whereIn:['Pendiente','Preparando','Listo'], por lo que
+          //    la mesa vuelve a mostrarse como LIBRE automáticamente.
+          // ── RETIRAR: igual, queda fuera del query de activos.
           await NotificacionService.notificarUsuario(
             uid: pedido.clienteId,
             titulo: '📦 ¡Pedido entregado!',
             cuerpo: 'Gracias por tu compra. ¡Buen provecho!',
             tipo: 'entregado',
+          );
+          break;
+
+        case 'Cancelado':
+          // Si era mesa, también sale del query → mesa queda libre.
+          await NotificacionService.notificarUsuario(
+            uid: pedido.clienteId,
+            titulo: '❌ Pedido cancelado',
+            cuerpo: 'Tu pedido ha sido cancelado. Contáctanos si tienes dudas.',
+            tipo: 'cancelado',
           );
           break;
       }
@@ -197,17 +247,15 @@ class PedidoService {
   Future<void> cambiarEstado(String pedidoId, String estado) async =>
       actualizarEstado(pedidoId, estado);
 
-  // ── Asignar repartidor ────────────────────────────────────────
-  Future<bool> asignarRepartidor(String pedidoId, String repartidorId) async {
+  // ── Asignar repartidor ─────────────────────────────────────────────────────
+  Future<bool> asignarRepartidor(String pedidoId,
+      String repartidorId) async {
     try {
       await _db.collection('pedidos').doc(pedidoId).update({
         'repartidorId': repartidorId,
         'estado': 'En camino',
         'actualizadoEn': FieldValue.serverTimestamp(),
       });
-
-      // Notificar al cliente (se dispara desde actualizarEstado vía trigger,
-      // pero lo hacemos explícito aquí también)
       final doc = await _db.collection('pedidos').doc(pedidoId).get();
       if (doc.exists) {
         final p = PedidoModel.fromFirestore(doc.id, doc.data()!);
@@ -225,27 +273,29 @@ class PedidoService {
     }
   }
 
-  // ── Verificar código y marcar entregado ───────────────────────
+  // ── Verificar código de entrega (domicilio) ───────────────────────────────
   Future<bool> verificarCodigoEntrega(String pedidoId, String codigo) async {
     try {
       final doc = await _db.collection('pedidos').doc(pedidoId).get();
       if (!doc.exists) return false;
       final p = PedidoModel.fromFirestore(doc.id, doc.data()!);
       if (p.codigoVerificacion == codigo.trim()) {
-        await _db.collection('pedidos').doc(pedidoId).update({'verificado': true});
+        await _db.collection('pedidos').doc(pedidoId)
+            .update({'verificado': true});
         return true;
       }
       return false;
     } catch (_) { return false; }
   }
 
+  /// Verifica el código Y marca el pedido como Entregado en un solo paso.
   Future<bool> marcarEntregadoDomicilio(String pedidoId, String codigo) async {
     final ok = await verificarCodigoEntrega(pedidoId, codigo);
     if (!ok) return false;
     return actualizarEstado(pedidoId, 'Entregado');
   }
 
-  // ── Helpers ───────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   Future<PedidoModel?> obtenerPedidoPorId(String pedidoId) async {
     try {
       final doc = await _db.collection('pedidos').doc(pedidoId).get();

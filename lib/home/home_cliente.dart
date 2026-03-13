@@ -6,6 +6,7 @@ import '../cliente/mis_pedidos_page.dart';
 import '../cliente/perfil_page.dart';
 import '../carrito/carrito_page.dart';
 import '../carrito/carrito_provider.dart';
+import '../cliente/fidelidad_page.dart';
 import '../services/theme_provider.dart';
 
 const _kNaranja  = Color(0xFFFF6B35);
@@ -43,11 +44,12 @@ class _HomeClienteState extends State<HomeCliente>
     setState(() => _idx = i);
   }
 
-  static const _titles = ['Menú', 'Mis Pedidos', 'Carrito', 'Perfil'];
+  static const _titles = ['Menú', 'Mis Pedidos', 'Carrito', 'Puntos', 'Perfil'];
   static const _colores = [
     _kNaranja,
     Color(0xFF38BDF8),
     Color(0xFF4ADE80),
+    Color(0xFFFFD700),
     Color(0xFFA78BFA),
   ];
 
@@ -65,6 +67,7 @@ class _HomeClienteState extends State<HomeCliente>
       const MenuPage(),
       const MisPedidosPage(),
       const CarritoPage(),
+      const FidelidadPage(),
       const PerfilPage(),
     ];
 
@@ -228,17 +231,19 @@ class _BottomNav extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _labels = ['Menú', 'Pedidos', 'Carrito', 'Perfil'];
+  static const _labels = ['Menú', 'Pedidos', 'Carrito', 'Puntos', 'Perfil'];
   static const _icons = [
     Icons.restaurant_menu_outlined,
     Icons.receipt_long_outlined,
     Icons.shopping_cart_outlined,
+    Icons.stars_outlined,
     Icons.person_outline,
   ];
   static const _iconsActive = [
     Icons.restaurant_menu,
     Icons.receipt_long,
     Icons.shopping_cart,
+    Icons.stars,
     Icons.person,
   ];
 
@@ -262,7 +267,7 @@ class _BottomNav extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(4, (i) {
+            children: List.generate(5, (i) {
               final sel       = selectedIndex == i;
               final color     = colors[i];
               final isCarrito = i == 2;

@@ -12,7 +12,6 @@ import 'splash_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializar Firebase ignorando si ya existe
   try {
     await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform);
@@ -20,14 +19,8 @@ void main() async {
     if (!e.toString().contains('duplicate-app')) rethrow;
   }
 
-  try {
-    await NotificacionService().inicializar();
-  } catch (_) {}
-  try {
-    await ProductoService().inicializarProductosEjemplo();
-  } catch (_) {}
-
-  await NotificacionService().inicializar(); // ← AGREGAR ESTA LÍNEA
+  try { await NotificacionService().inicializar(); } catch (_) {}
+  try { await ProductoService().inicializarProductosEjemplo(); } catch (_) {}
 
   runApp(const MyApp());
 }
@@ -49,7 +42,12 @@ class MyApp extends StatelessWidget {
           themeMode: theme.themeMode,
           theme: ThemeProvider.temaClaro,
           darkTheme: ThemeProvider.temaOscuro,
-          home: const NotificacionBanner(child: SplashPage()),
+          // Ruta raíz para que los home files puedan hacer logout
+          // sin necesidad de importar LoginPage directamente
+          initialRoute: '/',
+          routes: {
+            '/': (_) => const NotificacionBanner(child: SplashPage()),
+          },
         ),
       ),
     );

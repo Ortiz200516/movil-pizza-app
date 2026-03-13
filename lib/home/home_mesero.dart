@@ -10,7 +10,6 @@ import '../services/producto_service.dart';
 import '../models/pedido_model.dart';
 import '../models/producto_model.dart';
 import '../pedidos/pedidos_service.dart';
-import '../auth/login_page.dart';
 
 const _kTeal = Color(0xFF0F766E);
 const _kBg   = Color(0xFF0F172A);
@@ -89,8 +88,7 @@ class _MeseroAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: () async {
                 await AuthService().logout();
                 if (context.mounted) {
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()));
+                  Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
                 }
               },
             ),
@@ -298,7 +296,7 @@ class _GrupoHeader extends StatelessWidget {
       const SizedBox(width: 8),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(color: color.withOpacity(0.15),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10)),
         child: Text('$count', style: TextStyle(color: color,
             fontWeight: FontWeight.bold, fontSize: 11)),
@@ -327,7 +325,7 @@ class _PedidoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Column(children: [
         Padding(
@@ -335,7 +333,7 @@ class _PedidoCard extends StatelessWidget {
           child: Row(children: [
             Container(
               width: 42, height: 42,
-              decoration: BoxDecoration(color: color.withOpacity(0.12),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10)),
               child: Center(child: Text(pedido.iconoEstado,
                   style: const TextStyle(fontSize: 22))),
@@ -353,7 +351,7 @@ class _PedidoCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: color.withOpacity(0.15),
+                  decoration: BoxDecoration(color: color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6)),
                   child: Text(pedido.estado, style: TextStyle(
                       color: color, fontSize: 11, fontWeight: FontWeight.bold)),
@@ -383,7 +381,7 @@ class _PedidoCard extends StatelessWidget {
                 child: Row(children: [
                   Container(
                     width: 22, height: 22,
-                    decoration: BoxDecoration(color: color.withOpacity(0.1),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(5)),
                     child: Center(child: Text('${item['cantidad'] ?? 1}',
                         style: TextStyle(color: color, fontSize: 10,
@@ -503,7 +501,7 @@ class _TabNuevaOrdenState extends State<_TabNuevaOrden> {
               filled: true, fillColor: _kBg,
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: _kGreen.withOpacity(0.4))),
+                  borderSide: BorderSide(color: _kGreen.withValues(alpha: 0.4))),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: _kGreen, width: 2)),
@@ -644,7 +642,7 @@ class _TabNuevaOrdenState extends State<_TabNuevaOrden> {
                           margin: const EdgeInsets.only(right: 8),
                           width: 44, height: 36,
                           decoration: BoxDecoration(
-                            color: sel ? _kTeal.withOpacity(0.3) : _kCard,
+                            color: sel ? _kTeal.withValues(alpha: 0.3) : _kCard,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: sel ? _kGreen : Colors.white12,
@@ -854,16 +852,16 @@ class _MesaCardState extends State<_MesaCard>
         builder: (context, child) => AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: ocupada ? color.withOpacity(0.1) : _kCard,
+            color: ocupada ? color.withValues(alpha: 0.1) : _kCard,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: listo
-                  ? Colors.green.withOpacity(0.4 + _pulseCtrl.value * 0.4)
-                  : color.withOpacity(0.5),
+                  ? Colors.green.withValues(alpha: 0.4 + _pulseCtrl.value * 0.4)
+                  : color.withValues(alpha: 0.5),
               width: listo ? 2 : 1.5,
             ),
             boxShadow: listo ? [BoxShadow(
-                color: Colors.green.withOpacity(0.05 + _pulseCtrl.value * 0.12),
+                color: Colors.green.withValues(alpha: 0.05 + _pulseCtrl.value * 0.12),
                 blurRadius: 12, spreadRadius: 2)] : null,
           ),
           child: child,
@@ -913,10 +911,10 @@ class _ProductoOrdenCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          color: tiene ? _kTeal.withOpacity(0.15) : _kCard,
+          color: tiene ? _kTeal.withValues(alpha: 0.15) : _kCard,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: tiene ? _kGreen.withOpacity(0.6) : Colors.white12,
+            color: tiene ? _kGreen.withValues(alpha: 0.6) : Colors.white12,
             width: tiene ? 1.5 : 1),
         ),
         child: Column(children: [
@@ -1001,7 +999,7 @@ class _CatChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8, top: 5, bottom: 5),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: sel ? _kTeal.withOpacity(0.2) : _kCard,
+        color: sel ? _kTeal.withValues(alpha: 0.2) : _kCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: sel ? _kGreen : Colors.white12,
@@ -1022,9 +1020,9 @@ class _StatChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
     decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3))),
+        border: Border.all(color: color.withValues(alpha: 0.3))),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Text(emoji, style: const TextStyle(fontSize: 13)),
       const SizedBox(width: 5),
@@ -1102,7 +1100,7 @@ class _DetalleMesaSheet extends StatelessWidget {
         // Header
         Row(children: [
           Container(width: 48, height: 48,
-            decoration: BoxDecoration(color: color.withOpacity(0.15),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12)),
             child: Center(child: Text('$mesa',
                 style: TextStyle(color: color, fontSize: 20,
@@ -1114,7 +1112,7 @@ class _DetalleMesaSheet extends StatelessWidget {
             Row(children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: color.withOpacity(0.15),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20)),
                 child: Text(estado, style: TextStyle(
                     color: color, fontWeight: FontWeight.bold, fontSize: 12))),
@@ -1138,7 +1136,7 @@ class _DetalleMesaSheet extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(width: 28, height: 28,
-                  decoration: BoxDecoration(color: _kTeal.withOpacity(0.15),
+                  decoration: BoxDecoration(color: _kTeal.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(7)),
                   child: Center(child: Text('${item['cantidad']}',
                       style: const TextStyle(color: _kGreen,

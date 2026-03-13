@@ -148,10 +148,9 @@ class _MenuPageState extends State<MenuPage> {
             ),
           ),
 
-          // Buscador + chips categorías (sticky)
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _SearchDelegate(
+          // Buscador + chips categorías
+          SliverToBoxAdapter(
+            child: _SearchBar(
               query: _query,
               catSel: _catSel,
               searchCtrl: _searchCtrl,
@@ -246,8 +245,8 @@ class _MenuPageState extends State<MenuPage> {
   }
 }
 
-// ── Delegate buscador + chips ─────────────────────────────────────────────────
-class _SearchDelegate extends SliverPersistentHeaderDelegate {
+// ── Buscador + chips (widget normal, sin SliverPersistentHeader) ──────────────
+class _SearchBar extends StatelessWidget {
   final String query;
   final String? catSel;
   final TextEditingController searchCtrl;
@@ -255,19 +254,14 @@ class _SearchDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onClearQuery;
   final ValueChanged<String?> onCatSelected;
 
-  const _SearchDelegate({
+  const _SearchBar({
     required this.query, required this.catSel,
     required this.searchCtrl, required this.onQueryChanged,
     required this.onClearQuery, required this.onCatSelected,
   });
 
-  @override double get minExtent => 108;
-  @override double get maxExtent => 108;
-  @override bool shouldRebuild(_SearchDelegate o) =>
-      o.query != query || o.catSel != catSel;
-
   @override
-  Widget build(BuildContext ctx, double shrink, bool overlaps) {
+  Widget build(BuildContext context) {
     return Container(
       color: _kBg,
       child: Column(children: [
