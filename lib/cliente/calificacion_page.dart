@@ -164,7 +164,7 @@ class _CalificacionPageState extends State<CalificacionPage>
                 fontWeight: FontWeight.w900)),
         const SizedBox(height: 10),
         Text('Gracias por tu opinión',
-            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 15)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 15)),
         const SizedBox(height: 40),
         ElevatedButton(
           onPressed: () => Navigator.pop(context),
@@ -194,7 +194,7 @@ class _CalificacionPageState extends State<CalificacionPage>
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           Text('Nos ayuda a mejorar cada día',
-              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 15)),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 15)),
           const SizedBox(height: 40),
           Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -228,7 +228,7 @@ class _CalificacionPageState extends State<CalificacionPage>
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
         child: Row(children: [
           const Text('📦', style: TextStyle(fontSize: 28)),
@@ -287,7 +287,7 @@ class _CalificacionPageState extends State<CalificacionPage>
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                   color: rating > 0
-                      ? const Color(0xFFFF6B00).withOpacity(0.4)
+                      ? const Color(0xFFFF6B00).withValues(alpha: 0.4)
                       : Colors.white12),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,7 +325,7 @@ class _CalificacionPageState extends State<CalificacionPage>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
                 color: _foto != null
-                    ? const Color(0xFFFF6B00).withOpacity(0.4)
+                    ? const Color(0xFFFF6B00).withValues(alpha: 0.4)
                     : Colors.white12),
           ),
           child: _foto != null
@@ -370,7 +370,7 @@ class _CalificacionPageState extends State<CalificacionPage>
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: '¿Qué te gustó? ¿Qué podemos mejorar?',
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.25)),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.25)),
           filled: true, fillColor: const Color(0xFF1E293B),
           counterStyle: const TextStyle(color: Colors.white24),
           border: OutlineInputBorder(

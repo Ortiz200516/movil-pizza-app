@@ -218,9 +218,13 @@ class _TabEnVivo extends StatelessWidget {
               child: CircularProgressIndicator(color: _kNaranja));
         }
         final todos      = snap.data ?? [];
-        final pendientes = todos.where((p) => p.estado == 'Pendiente').toList();
-        final preparando = todos.where((p) => p.estado == 'Preparando').toList();
-        final listos     = todos.where((p) => p.estado == 'Listo').toList();
+        // Ordenar por tiempo de espera (más antiguos primero)
+        final pendientes = todos.where((p) => p.estado == 'Pendiente').toList()
+          ..sort((a,b) => a.fecha.compareTo(b.fecha));
+        final preparando = todos.where((p) => p.estado == 'Preparando').toList()
+          ..sort((a,b) => a.fecha.compareTo(b.fecha));
+        final listos     = todos.where((p) => p.estado == 'Listo').toList()
+          ..sort((a,b) => a.fecha.compareTo(b.fecha));
 
         if (todos.isEmpty) {
           return Center(child: Column(
@@ -424,6 +428,7 @@ class _PedidoCardState extends State<_PedidoCard> {
   Timer? _timer;
   Duration _elapsed = Duration.zero;
   bool _procesando = false;
+  bool _prioritario = false;
 
   @override
   void initState() {
@@ -475,6 +480,16 @@ class _PedidoCardState extends State<_PedidoCard> {
 
     return GestureDetector(
       onTap: () => _verDetalle(context),
+      onLongPress: () {
+        HapticFeedback.heavyImpact();
+        setState(() => _prioritario = !_prioritario);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_prioritario ? '🚨 Marcado como prioritario' : '⚑ Prioridad removida'),
+          backgroundColor: _prioritario ? Colors.red.shade800 : _kCard,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ));
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         margin: const EdgeInsets.only(bottom: 8),
@@ -492,26 +507,53 @@ class _PedidoCardState extends State<_PedidoCard> {
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // ── Cabecera con tipo + timer ────────────────────────────────────────
+          // ── Cabecera con tipo + timer + prioridad ───────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: 0.06),
+              color: (_prioritario
+                  ? Colors.red.withValues(alpha: 0.08)
+                  : widget.color.withValues(alpha: 0.06)),
               borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(11)),
             ),
             child: Row(children: [
+              // Tipo pedido
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                     color: widget.color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6)),
                 child: Text(
-                    esMesa ? '🍽️ Mesa ${p.numeroMesa}' : '🛵 Domicilio',
+                    esMesa ? '🍽️ Mesa ${p.numeroMesa}' :
+                    p.tipoPedido == 'retirar' ? '🏃 Retirar' : '🛵 Domicilio',
                     style: TextStyle(color: widget.color,
                         fontSize: 10, fontWeight: FontWeight.bold)),
               ),
               const Spacer(),
+              // Botón prioridad (tap para marcar urgente)
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  setState(() => _prioritario = !_prioritario);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _prioritario
+                        ? Colors.red.withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                        color: _prioritario
+                            ? Colors.red.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: Text(_prioritario ? '🚨' : '⚑',
+                      style: const TextStyle(fontSize: 10)),
+                ),
+              ),
               // Timer en vivo
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -522,9 +564,9 @@ class _PedidoCardState extends State<_PedidoCard> {
                       color: _tiempoColor.withValues(alpha: 0.4)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  if (_esUrgente)
+                  if (_esUrgente || _prioritario)
                     const Text('🔥', style: TextStyle(fontSize: 9)),
-                  if (_esUrgente) const SizedBox(width: 3),
+                  if (_esUrgente || _prioritario) const SizedBox(width: 3),
                   Text(_tiempoStr, style: TextStyle(
                       color: _tiempoColor,
                       fontSize: 10, fontWeight: FontWeight.bold,
@@ -790,10 +832,187 @@ class _DetalleSheet extends StatelessWidget {
               Text(p.metodoPago, style: const TextStyle(
                   color: Colors.white38, fontSize: 12)),
             ]),
+
+            const SizedBox(height: 16),
+            // ── Cronómetro de cocción ──────────────────────────────────
+            const _CronometroCoccion(),
           ],
         ),
       ),
     );
+  }
+}
+
+// ── Cronómetro de cocción configurable ───────────────────────────────────────
+class _CronometroCoccion extends StatefulWidget {
+  const _CronometroCoccion();
+  @override
+  State<_CronometroCoccion> createState() => _CronometroCoccionState();
+}
+
+class _CronometroCoccionState extends State<_CronometroCoccion> {
+  static const _presets = [5, 8, 10, 12, 15, 20];
+  int   _minutos  = 10;
+  int   _restante = 0;  // segundos
+  bool  _activo   = false;
+  bool  _sonando  = false;
+  Timer? _timer;
+
+  @override
+  void dispose() { _timer?.cancel(); super.dispose(); }
+
+  void _iniciar() {
+    setState(() {
+      _restante = _minutos * 60;
+      _activo   = true;
+      _sonando  = false;
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_restante > 0) {
+          _restante--;
+        } else {
+          _activo  = false;
+          _sonando = true;
+          _timer?.cancel();
+          HapticFeedback.heavyImpact();
+          Future.delayed(const Duration(milliseconds: 300),
+              () => HapticFeedback.heavyImpact());
+          Future.delayed(const Duration(milliseconds: 600),
+              () => HapticFeedback.heavyImpact());
+        }
+      });
+    });
+  }
+
+  void _detener() {
+    _timer?.cancel();
+    setState(() { _activo = false; _sonando = false; _restante = 0; });
+  }
+
+  String get _tiempoStr {
+    final m = _restante ~/ 60;
+    final s = _restante % 60;
+    return '${m.toString().padLeft(2,'0')}:${s.toString().padLeft(2,'0')}';
+  }
+
+  double get _progreso =>
+      _activo && _minutos > 0 ? 1 - (_restante / (_minutos * 60)) : 0.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('⏱️ CRONÓMETRO DE COCCIÓN', style: TextStyle(
+          color: Colors.white38, fontSize: 10,
+          fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+      const SizedBox(height: 12),
+
+      // Presets de tiempo
+      if (!_activo && !_sonando)
+        Wrap(spacing: 8, runSpacing: 6,
+          children: _presets.map((m) {
+            final sel = _minutos == m;
+            return GestureDetector(
+              onTap: () => setState(() => _minutos = m),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: sel ? _kNaranja.withValues(alpha: 0.15) : _kCard2,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: sel ? _kNaranja.withValues(alpha: 0.5)
+                          : Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Text('${m}min', style: TextStyle(
+                    color: sel ? _kNaranja : Colors.white38,
+                    fontSize: 12, fontWeight: sel
+                        ? FontWeight.bold : FontWeight.normal)),
+              ),
+            );
+          }).toList(),
+        ),
+
+      const SizedBox(height: 12),
+
+      // Display del timer
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _sonando
+              ? _kRojo.withValues(alpha: 0.12)
+              : _kCard2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _sonando
+                ? _kRojo.withValues(alpha: 0.5)
+                : _activo
+                    ? _kNaranja.withValues(alpha: 0.3)
+                    : Colors.white.withValues(alpha: 0.06),
+            width: _sonando ? 2 : 1,
+          ),
+        ),
+        child: Column(children: [
+          // Barra de progreso
+          if (_activo || _sonando) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _sonando ? 1.0 : _progreso,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
+                valueColor: AlwaysStoppedAnimation(
+                    _sonando ? _kRojo : _kNaranja),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(
+              _sonando ? '🔔 ¡LISTO!' :
+              _activo ? _tiempoStr :
+              '${_minutos.toString().padLeft(2,'0')}:00',
+              style: TextStyle(
+                color: _sonando ? _kRojo :
+                    _activo ? _kNaranja : Colors.white38,
+                fontSize: _sonando ? 24 : 32,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            if (!_activo && !_sonando)
+              ElevatedButton.icon(
+                onPressed: _iniciar,
+                icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                label: Text('Iniciar ${_minutos}min'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _kNaranja,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: _detener,
+                icon: const Icon(Icons.stop_rounded, size: 18),
+                label: Text(_sonando ? 'OK' : 'Detener'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _sonando ? _kRojo : _kCard,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+              ),
+          ]),
+        ]),
+      ),
+    ]);
   }
 }
 
@@ -1213,6 +1432,86 @@ class _TabMiTurno extends StatelessWidget {
             ],
 
             const SizedBox(height: 20),
+
+            // ── Resumen de ingredientes del turno ──────────────────────
+            if (contador.isNotEmpty) ...[
+              const Text('📦 Resumen para preparar',
+                  style: TextStyle(color: Colors.white70,
+                      fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Column(children: [
+                  // Pedidos activos
+                  StreamBuilder<List<PedidoModel>>(
+                    stream: PedidoService().obtenerPedidosActivos(),
+                    builder: (_, snapActivos) {
+                      final activos = snapActivos.data ?? [];
+                      final Map<String, int> ingredientes = {};
+                      for (final p in activos) {
+                        for (final item in p.items) {
+                          final n = item['productoNombre'] ?? item['nombre'] ?? '';
+                          final cant = (item['cantidad'] ?? 1) as int;
+                          ingredientes[n] = (ingredientes[n] ?? 0) + cant;
+                        }
+                      }
+                      if (ingredientes.isEmpty) {
+                        return Text('Sin pedidos activos ahora',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                fontSize: 13));
+                      }
+                      final sorted = ingredientes.entries.toList()
+                        ..sort((a,b) => b.value.compareTo(a.value));
+                      return Column(children: [
+                        Row(children: [
+                          Container(
+                            width: 8, height: 8,
+                            decoration: BoxDecoration(
+                                color: _kNaranja, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('${activos.length} pedidos activos — '
+                              'necesitas preparar:',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 11)),
+                        ]),
+                        const SizedBox(height: 10),
+                        ...sorted.map((e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(children: [
+                            Container(
+                              width: 32, height: 32,
+                              decoration: BoxDecoration(
+                                color: _kNaranja.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(child: Text('${e.value}',
+                                  style: const TextStyle(
+                                      color: _kNaranja,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14))),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(e.key,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 13))),
+                          ]),
+                        )),
+                      ]);
+                    },
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 20),
+            ],
           ],
         );
       },

@@ -308,7 +308,7 @@ class _CardDisponibleState extends State<_CardDisponible> {
                   const SizedBox(height: 4),
                   Row(children: [
                     const Icon(Icons.info_outline,
-                        size: 14, color: Colors.grey),
+                        size: 14, color: Colors.white38),
                     const SizedBox(width: 6),
                     Expanded(
                         child: Text(
@@ -550,7 +550,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
                   _expandido
                       ? Icons.expand_less
                       : Icons.expand_more,
-                  color: Colors.grey),
+                  color: Colors.white38),
             ]),
           ),
         ),
@@ -577,7 +577,7 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
                 Row(children: [
                   const SizedBox(width: 24),
                   const Icon(Icons.phone,
-                      size: 15, color: Colors.grey),
+                      size: 15, color: Colors.white38),
                   const SizedBox(width: 5),
                   Text(p.clienteTelefono!,
                       style: const TextStyle(

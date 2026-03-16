@@ -199,18 +199,18 @@ class _TrackingClientePageState extends State<TrackingClientePage>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A).withOpacity(0.85),
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                           color: Colors.green
-                              .withOpacity(0.4 + _pulseCtrl.value * 0.4)),
+                              .withValues(alpha: 0.4 + _pulseCtrl.value * 0.4)),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Container(
                         width: 8, height: 8,
                         decoration: BoxDecoration(
                           color: Colors.green
-                              .withOpacity(0.6 + _pulseCtrl.value * 0.4),
+                              .withValues(alpha: 0.6 + _pulseCtrl.value * 0.4),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -226,7 +226,7 @@ class _TrackingClientePageState extends State<TrackingClientePage>
             // Overlay entregado
             if (_entregado)
               Container(
-                color: Colors.black.withOpacity(0.65),
+                color: Colors.black.withValues(alpha: 0.65),
                 child: Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Text('🎉', style: TextStyle(fontSize: 60)),
@@ -236,7 +236,7 @@ class _TrackingClientePageState extends State<TrackingClientePage>
                           fontSize: 22, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 6),
                   Text('Gracias por tu preferencia',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5),
                           fontSize: 14)),
                   const SizedBox(height: 20),
                   TextButton(
@@ -298,7 +298,7 @@ class _LineaTiempo extends StatelessWidget {
                   color: completado
                       ? const Color(0xFFFF6B00)
                       : activo
-                          ? const Color(0xFFFF6B00).withOpacity(0.2)
+                          ? const Color(0xFFFF6B00).withValues(alpha: 0.2)
                           : const Color(0xFF1E293B),
                   border: Border.all(
                     color: (completado || activo)
@@ -364,7 +364,7 @@ class _PanelInferior extends StatelessWidget {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.12),
+              color: Colors.orange.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Center(child: Text('📍', style: TextStyle(fontSize: 18))),
@@ -402,11 +402,11 @@ class _PanelInferior extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
-              Colors.orange.withOpacity(0.12),
-              Colors.orange.withOpacity(0.06),
+              Colors.orange.withValues(alpha: 0.12),
+              Colors.orange.withValues(alpha: 0.06),
             ]),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
           ),
           child: Row(children: [
             const Text('🔐', style: TextStyle(fontSize: 18)),

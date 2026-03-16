@@ -329,9 +329,9 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
         Container(
           width: 38, height: 38,
           decoration: BoxDecoration(
-            color: _kOrange.withOpacity(0.15),
+            color: _kOrange.withValues(alpha: 0.15),
             shape: BoxShape.circle,
-            border: Border.all(color: _kOrange.withOpacity(0.3)),
+            border: Border.all(color: _kOrange.withValues(alpha: 0.3)),
           ),
           child: Center(child: Text(
             esCliente ? '🛵' : '👤',
@@ -361,10 +361,10 @@ class _ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
             padding: const EdgeInsets.symmetric(
                 horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.12),
+              color: Colors.green.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: Colors.green.withOpacity(0.3)),
+                  color: Colors.green.withValues(alpha: 0.3)),
             ),
             child: const Row(children: [
               Icon(Icons.circle, color: Colors.green, size: 8),
@@ -413,7 +413,7 @@ class _BurbujaMensaje extends StatelessWidget {
           ),
           boxShadow: [BoxShadow(
             color: (esMio ? _kOrange : Colors.black)
-                .withOpacity(0.15),
+                .withValues(alpha: 0.15),
             blurRadius: 6, offset: const Offset(0, 2),
           )],
         ),
@@ -423,14 +423,14 @@ class _BurbujaMensaje extends StatelessWidget {
               : CrossAxisAlignment.start,
           children: [
             Text(texto, style: TextStyle(
-                color: esMio ? Colors.white : Colors.white.withOpacity(0.9),
+                color: esMio ? Colors.white : Colors.white.withValues(alpha: 0.9),
                 fontSize: 14, height: 1.3)),
             const SizedBox(height: 4),
             Row(mainAxisSize: MainAxisSize.min, children: [
               if (ts != null)
                 Text(_formatHora(ts!), style: TextStyle(
                     color: esMio
-                        ? Colors.white.withOpacity(0.6)
+                        ? Colors.white.withValues(alpha: 0.6)
                         : Colors.white24,
                     fontSize: 10)),
               if (esMio) ...[
@@ -439,8 +439,8 @@ class _BurbujaMensaje extends StatelessWidget {
                   leido ? Icons.done_all : Icons.done,
                   size: 12,
                   color: leido
-                      ? Colors.white.withOpacity(0.9)
-                      : Colors.white.withOpacity(0.5),
+                      ? Colors.white.withValues(alpha: 0.9)
+                      : Colors.white.withValues(alpha: 0.5),
                 ),
               ],
             ]),
@@ -588,7 +588,7 @@ class _MensajesRapidos extends StatelessWidget {
               color: _kCard2,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                  color: _kOrange.withOpacity(0.25)),
+                  color: _kOrange.withValues(alpha: 0.25)),
             ),
             child: Text(opciones[i], style: const TextStyle(
                 color: Colors.white70, fontSize: 12)),
@@ -620,7 +620,7 @@ class _InputMensaje extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kCard,
         boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8, offset: const Offset(0, -2))],
       ),
       child: Row(children: [
@@ -648,7 +648,7 @@ class _InputMensaje extends StatelessWidget {
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(24),
                 borderSide: BorderSide(
-                    color: _kOrange.withOpacity(0.5), width: 1.5),
+                    color: _kOrange.withValues(alpha: 0.5), width: 1.5),
               ),
             ),
           ),
@@ -661,10 +661,10 @@ class _InputMensaje extends StatelessWidget {
             width: 44, height: 44,
             decoration: BoxDecoration(
               color: enviando
-                  ? Colors.grey : _kOrange,
+                  ? Colors.white38 : _kOrange,
               shape: BoxShape.circle,
               boxShadow: enviando ? null : [BoxShadow(
-                  color: _kOrange.withOpacity(0.4),
+                  color: _kOrange.withValues(alpha: 0.4),
                   blurRadius: 8, spreadRadius: 1)],
             ),
             child: Center(child: enviando
@@ -733,10 +733,10 @@ class ChatBadge extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                   color: sinLeer > 0
-                      ? _kOrange.withOpacity(0.6)
-                      : Colors.white.withOpacity(0.1)),
+                      ? _kOrange.withValues(alpha: 0.6)
+                      : Colors.white.withValues(alpha: 0.1)),
               boxShadow: [BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 8)],
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [

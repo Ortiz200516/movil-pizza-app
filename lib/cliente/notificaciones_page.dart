@@ -116,7 +116,7 @@ class NotificacionesPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text('Aquí verás el estado de tus pedidos',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha: 0.25),
                         fontSize: 13)),
               ]),
             );
@@ -141,7 +141,7 @@ class NotificacionesPage extends StatelessWidget {
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),
-                  color: Colors.red.withOpacity(0.2),
+                  color: Colors.red.withValues(alpha: 0.2),
                   child: const Icon(Icons.delete_outline,
                       color: Colors.red),
                 ),
@@ -158,12 +158,12 @@ class NotificacionesPage extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: leida
                           ? const Color(0xFF1E293B)
-                          : color.withOpacity(0.08),
+                          : color.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                           color: leida
-                              ? Colors.white.withOpacity(0.06)
-                              : color.withOpacity(0.3),
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : color.withValues(alpha: 0.3),
                           width: leida ? 1 : 1.5),
                     ),
                     child: Row(children: [
@@ -171,7 +171,7 @@ class NotificacionesPage extends StatelessWidget {
                       Container(
                         width: 44, height: 44,
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.15),
+                          color: color.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Center(

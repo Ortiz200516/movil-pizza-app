@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'carrito_provider.dart';
@@ -49,6 +50,9 @@ class _CarritoPageState extends State<CarritoPage>
   int    _puntosDisponibles = 0;
   int    _puntosCanjeados   = 0;
   double _descuentoPuntos   = 0.0;
+  // ── Comprobante transferencia ──────────────────────────────────────────────
+  bool   _comprobanteEnviado = false;
+  String? _pedidoIdPendiente;
 
   // ── Animación éxito ───────────────────────────────────────────────────────
   late AnimationController _exitoCtrl;
@@ -118,7 +122,7 @@ class _CarritoPageState extends State<CarritoPage>
 
     setState(() => _enviando = true);
     try {
-      final total = (carrito.total - _descuento).clamp(0.0, double.infinity);
+      final total = (carrito.total - _descuento - _descuentoPuntos).clamp(0.0, double.infinity);
 
       // Datos extra de pago (aplica a todos los tipos)
       Map<String, dynamic> datosPago = {'metodoPago': _metodoPago};
@@ -162,11 +166,15 @@ class _CarritoPageState extends State<CarritoPage>
       carrito.limpiarCarrito();
       // Otorgar puntos si hubo canje previo, descontarlo
       if (_puntosCanjeados > 0) await FidelidadService().canjearPuntos(_puntosCanjeados);
-      if (pedido != null) await FidelidadService().sumarPuntos(pedido.id, total);
+      if (pedido != null) {
+        _pedidoIdPendiente = pedido.id;
+        await FidelidadService().sumarPuntos(pedido.id, total);
+      }
       HapticFeedback.heavyImpact();
       await Future.delayed(const Duration(milliseconds: 200));
       _exitoCtrl.forward();
     } catch (e) {
+      if (!mounted) return;
       _snack('Error: $e', Colors.red);
     } finally {
       setState(() => _enviando = false);
@@ -184,7 +192,7 @@ class _CarritoPageState extends State<CarritoPage>
   // ── Calcular cambio ───────────────────────────────────────────────────────
   double get _cambio {
     final carrito = Provider.of<CarritoProvider>(context, listen: false);
-    final total   = (carrito.total - _descuento).clamp(0.0, double.infinity);
+    final total   = (carrito.total - _descuento - _descuentoPuntos).clamp(0.0, double.infinity);
     final pago    = double.tryParse(_pagoCtrl.text) ?? 0;
     return (pago - total).clamp(0.0, double.infinity);
   }
@@ -199,10 +207,17 @@ class _CarritoPageState extends State<CarritoPage>
       codigo: _codVerif,
       scaleAnim: _exitoScale,
       opacityAnim: _exitoOpacity,
+      metodoPago: _metodoPago,
+      bancoSel: _bancoSel,
+      pedidoId: _pedidoIdPendiente,
+      total: (Provider.of<CarritoProvider>(context, listen: false).total
+          - _descuento - _descuentoPuntos).clamp(0.0, double.infinity),
       onNuevo: () => setState(() {
         _exito = false; _tipo = 'mesa'; _mesaSel = null;
         _descuento = 0; _cuponOk = null; _codVerif = null;
         _bancoSel = null; _metodoPago = 'efectivo';
+        _puntosCanjeados = 0; _descuentoPuntos = 0;
+        _comprobanteEnviado = false; _pedidoIdPendiente = null;
         _exitoCtrl.reset();
       }),
     );
@@ -965,7 +980,6 @@ class _SelectorBancos extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('config_bancos')
           .where('activo', isEqualTo: true)
-          .orderBy('orden')
           .snapshots(),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
@@ -973,7 +987,12 @@ class _SelectorBancos extends StatelessWidget {
               child: CircularProgressIndicator(
                   color: _kNaranja, strokeWidth: 2));
         }
-        final bancos = snap.data?.docs ?? [];
+        final bancos = (snap.data?.docs ?? [])
+          ..sort((a, b) {
+            final oa = ((a.data() as Map<String,dynamic>)['orden'] as int?) ?? 99;
+            final ob = ((b.data() as Map<String,dynamic>)['orden'] as int?) ?? 99;
+            return oa.compareTo(ob);
+          });
         if (bancos.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(12),
@@ -1171,117 +1190,455 @@ class _PanelCupon extends StatelessWidget {
 }
 
 // ── Pantalla de éxito ─────────────────────────────────────────────────────────
-class _PantallaExito extends StatelessWidget {
+class _PantallaExito extends StatefulWidget {
   final String tipo;
   final int?   mesa;
-  final String? codigo;   // null cuando no es domicilio
+  final String? codigo;
+  final String  metodoPago;
+  final Map<String, dynamic>? bancoSel;
+  final String? pedidoId;
+  final double  total;
   final Animation<double> scaleAnim, opacityAnim;
   final VoidCallback onNuevo;
 
-  const _PantallaExito({required this.tipo, this.mesa, this.codigo,
-      required this.scaleAnim, required this.opacityAnim,
-      required this.onNuevo});
+  const _PantallaExito({
+    required this.tipo, this.mesa, this.codigo,
+    required this.metodoPago, this.bancoSel, this.pedidoId,
+    required this.total,
+    required this.scaleAnim, required this.opacityAnim,
+    required this.onNuevo,
+  });
+
+  @override
+  State<_PantallaExito> createState() => _PantallaExitoState();
+}
+
+class _PantallaExitoState extends State<_PantallaExito> {
+  bool _comprobanteEnviado = false;
+  bool _enviandoWA         = false;
 
   String get _subtitulo {
-    if (tipo == 'mesa' && mesa != null)
-      return 'Mesa $mesa · Preparando tu pedido 🍕';
-    if (tipo == 'retirar') return 'Te avisaremos cuando esté listo 🏃';
+    if (widget.tipo == 'mesa' && widget.mesa != null)
+      return 'Mesa ${widget.mesa} · Preparando tu pedido 🍕';
+    if (widget.tipo == 'retirar') return 'Te avisaremos cuando esté listo 🏃';
     return 'Tu pedido está en camino 🛵';
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: _kBg,
-    body: Center(child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: AnimatedBuilder(
-        animation: scaleAnim,
-        builder: (_, child) => Transform.scale(scale: scaleAnim.value,
-            child: Opacity(opacity: opacityAnim.value, child: child)),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(
-            width: 110, height: 110,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.green.withValues(alpha: 0.1),
-              border: Border.all(
-                  color: Colors.green.withValues(alpha: 0.3), width: 2),
-              boxShadow: [BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.2),
-                  blurRadius: 30, offset: const Offset(0, 8))],
-            ),
-            child: const Center(child:
-                Text('✅', style: TextStyle(fontSize: 52))),
-          ),
-          const SizedBox(height: 24),
-          const Text('¡Pedido confirmado!', style: TextStyle(
-              color: Colors.white, fontSize: 24,
-              fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Text(_subtitulo,
-              style: const TextStyle(color: Colors.white54, fontSize: 14),
-              textAlign: TextAlign.center),
+  // ── Abrir WhatsApp con mensaje pre-armado ─────────────────────────────────
+  Future<void> _abrirWhatsApp(String telefono) async {
+    setState(() => _enviandoWA = true);
+    try {
+      final banco    = widget.bancoSel?['nombre']        ?? '';
+      final cuenta   = widget.bancoSel?['numeroCuenta']  ?? '';
+      final titular  = widget.bancoSel?['titular']       ?? '';
+      final pedidoId = widget.pedidoId ?? '—';
+      final total    = widget.total.toStringAsFixed(2);
+      final tipo     = widget.tipo == 'mesa'
+          ? 'Mesa ${widget.mesa}'
+          : widget.tipo == 'retirar' ? 'Retiro en local' : 'Domicilio';
 
-          // Código de verificación — SOLO para domicilio
-          if (codigo != null) ...[
-            const SizedBox(height: 28),
+      final msg = Uri.encodeComponent(
+        'La Italiana - Comprobante de pago\n\n'
+        'Pedido: #${pedidoId.substring(0, pedidoId.length.clamp(0, 8))}\n'
+        'Total: \$$total\n'
+        'Banco: $banco\n'
+        'Cuenta: $cuenta\n'
+        'Titular: $titular\n'
+        'Tipo: $tipo\n\n'
+        'Adjunto el comprobante de transferencia. Por favor confirmar recepcion. Gracias!',
+      );
+
+      // Limpiar número: quitar espacios, guiones, +
+      final numLimpio = telefono
+          .replaceAll(RegExp(r'[^0-9]'), '');
+      final numConPais = numLimpio.startsWith('593')
+          ? numLimpio
+          : numLimpio.startsWith('0')
+              ? '593${numLimpio.substring(1)}'
+              : '593$numLimpio';
+
+      final url = Uri.parse('https://wa.me/$numConPais?text=$msg');
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+        setState(() { _comprobanteEnviado = true; });
+        // Marcar en Firestore que el comprobante fue enviado
+        if (widget.pedidoId != null) {
+          await FirebaseFirestore.instance
+              .collection('pedidos')
+              .doc(widget.pedidoId)
+              .update({'comprobanteEnviado': true,
+                       'fechaComprobante': FieldValue.serverTimestamp()});
+        }
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo abrir WhatsApp'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _enviandoWA = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final esTransferencia = widget.metodoPago == 'transferencia';
+
+    return Scaffold(
+      backgroundColor: _kBg,
+      body: SafeArea(child: SingleChildScrollView(child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: AnimatedBuilder(
+          animation: widget.scaleAnim,
+          builder: (_, child) => Transform.scale(
+              scale: widget.scaleAnim.value,
+              child: Opacity(opacity: widget.opacityAnim.value,
+                  child: child)),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+            const SizedBox(height: 20),
+            // ── Icono éxito ────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(16),
+              width: 110, height: 110,
               decoration: BoxDecoration(
-                color: _kNaranja.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
+                shape: BoxShape.circle,
+                color: Colors.green.withValues(alpha: 0.1),
                 border: Border.all(
-                    color: _kNaranja.withValues(alpha: 0.25)),
+                    color: Colors.green.withValues(alpha: 0.3), width: 2),
+              ),
+              child: const Center(child:
+                  Text('✅', style: TextStyle(fontSize: 52))),
+            ),
+            const SizedBox(height: 20),
+            const Text('¡Pedido confirmado!', style: TextStyle(
+                color: Colors.white, fontSize: 24,
+                fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text(_subtitulo,
+                style: const TextStyle(color: Colors.white54,
+                    fontSize: 14),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+
+            // ── Código verificación (domicilio) ────────────────────────
+            if (widget.codigo != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _kNaranja.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: _kNaranja.withValues(alpha: 0.25)),
+                ),
+                child: Column(children: [
+                  const Text('Código de verificación',
+                      style: TextStyle(color: Colors.white38,
+                          fontSize: 11)),
+                  const SizedBox(height: 8),
+                  Row(mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                    Text(widget.codigo!, style: const TextStyle(
+                        color: _kNaranja, fontSize: 32,
+                        fontWeight: FontWeight.w900, letterSpacing: 8)),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.copy,
+                          color: Colors.white38, size: 18),
+                      onPressed: () {
+                        Clipboard.setData(
+                            ClipboardData(text: widget.codigo!));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Código copiado ✅'),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 1)));
+                      },
+                    ),
+                  ]),
+                  Text('Muéstralo al recibir tu pedido',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 11)),
+                ]),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Bloque de transferencia + WhatsApp ─────────────────────
+            if (esTransferencia && widget.bancoSel != null) ...[
+              _BloqueTransferencia(
+                bancoSel: widget.bancoSel!,
+                total: widget.total,
+                enviado: _comprobanteEnviado,
+                enviando: _enviandoWA,
+                onEnviar: _abrirWhatsApp,
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Botón nuevo pedido ─────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: widget.onNuevo,
+                icon: const Text('🍕', style: TextStyle(fontSize: 16)),
+                label: const Text('Hacer otro pedido',
+                    style: TextStyle(fontWeight: FontWeight.bold,
+                        fontSize: 15)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kNaranja,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ]),
+        ),
+      ))),
+    );
+  }
+}
+
+// ── Bloque de transferencia con datos bancarios y botón WhatsApp ──────────────
+class _BloqueTransferencia extends StatelessWidget {
+  final Map<String, dynamic> bancoSel;
+  final double total;
+  final bool   enviado, enviando;
+  final Future<void> Function(String telefono) onEnviar;
+  const _BloqueTransferencia({
+    required this.bancoSel, required this.total,
+    required this.enviado, required this.enviando,
+    required this.onEnviar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('config_local').doc('info').snapshots(),
+      builder: (_, snap) {
+        final localData = snap.data?.data() as Map<String, dynamic>?;
+        final telefonoLocal = localData?['telefono'] as String? ?? '';
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F4C35),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: Colors.green.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Header
+            Row(children: [
+              const Text('💳', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Datos para transferir',
+                  style: TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w800, fontSize: 14))),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.orange.withValues(alpha: 0.3)),
+                ),
+                child: const Text('Pendiente', style: TextStyle(
+                    color: Colors.orange, fontSize: 10,
+                    fontWeight: FontWeight.w700)),
+              ),
+            ]),
+            const SizedBox(height: 14),
+
+            // Monto a transferir (resaltado)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.2)),
               ),
               child: Column(children: [
-                const Text('Código de verificación',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                const SizedBox(height: 8),
-                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(codigo!, style: const TextStyle(
-                      color: _kNaranja, fontSize: 32,
-                      fontWeight: FontWeight.w900, letterSpacing: 8)),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.copy,
-                        color: Colors.white38, size: 18),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: codigo!));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Código copiado ✅'),
-                            behavior: SnackBarBehavior.floating,
-                            duration: Duration(seconds: 1)));
-                    },
-                  ),
-                ]),
-                Text('Muéstralo al recibir tu pedido',
+                Text('Monto a transferir',
                     style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: Colors.white.withValues(alpha: 0.4),
                         fontSize: 11)),
+                const SizedBox(height: 4),
+                Text('\$${total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 28)),
               ]),
             ),
-          ],
+            const SizedBox(height: 14),
 
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: onNuevo,
-              icon: const Text('🍕', style: TextStyle(fontSize: 16)),
-              label: const Text('Hacer otro pedido',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kNaranja, foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(52), elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+            // Datos bancarios
+            _DatoTransf('🏦 Banco',    bancoSel['nombre']        ?? ''),
+            _DatoTransf('👤 Titular',  bancoSel['titular']       ?? ''),
+            _DatoTransf('💳 Cuenta',   bancoSel['numeroCuenta']  ?? '',
+                copiable: true),
+            _DatoTransf('📄 Tipo',     bancoSel['tipoCuenta']    ?? ''),
+            if ((bancoSel['identificacion'] as String? ?? '').isNotEmpty)
+              _DatoTransf('🪪 Cédula', bancoSel['identificacion'] ?? '',
+                  copiable: true),
+
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white10, height: 1),
+            const SizedBox(height: 14),
+
+            // Instrucciones
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(10),
               ),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text('📋 Pasos para confirmar tu pago:',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                ...[
+                  '1. Realiza la transferencia por \$${total.toStringAsFixed(2)}',
+                  '2. Toma captura del comprobante',
+                  '3. Toca el botón verde de abajo',
+                  '4. Se abrirá WhatsApp con el mensaje listo',
+                  '5. Adjunta la foto del comprobante y envía',
+                ].map((t) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(t, style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 11)),
+                )),
+              ]),
             ),
+            const SizedBox(height: 14),
+
+            // Botón WhatsApp
+            if (telefonoLocal.isNotEmpty)
+              GestureDetector(
+                onTap: enviando ? null : () => onEnviar(telefonoLocal),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: enviado
+                        ? Colors.green.withValues(alpha: 0.15)
+                        : const Color(0xFF25D366).withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: enviado ? Border.all(
+                        color: Colors.green.withValues(alpha: 0.4)) : null,
+                  ),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                    if (enviando)
+                      const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                    else ...[
+                      Text(enviado ? '✅' : '💬',
+                          style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Text(
+                        enviado
+                            ? 'Comprobante enviado'
+                            : 'Enviar comprobante por WhatsApp',
+                        style: TextStyle(
+                          color: enviado ? Colors.green : Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ]),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: Colors.orange.withValues(alpha: 0.2)),
+                ),
+                child: const Text(
+                  '⚠️ Contacta al local para enviar el comprobante. '
+                  'El admin aún no ha configurado el número de WhatsApp.',
+                  style: TextStyle(color: Colors.orange,
+                      fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+// ── Dato de transferencia con opción de copiar ────────────────────────────────
+class _DatoTransf extends StatelessWidget {
+  final String label, valor;
+  final bool copiable;
+  const _DatoTransf(this.label, this.valor, {this.copiable = false});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(children: [
+      Expanded(child: RichText(text: TextSpan(children: [
+        TextSpan(text: '$label: ',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 12)),
+        TextSpan(text: valor,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 12,
+                fontWeight: FontWeight.w600)),
+      ]))),
+      if (copiable)
+        GestureDetector(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: valor));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('📋 $label copiado'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 1),
+              backgroundColor: const Color(0xFF1E293B),
+            ));
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Text('Copiar', style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 10)),
           ),
-        ]),
-      ),
-    )),
+        ),
+    ]),
   );
 }
 

@@ -61,7 +61,7 @@ class PromocionesWidget extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                          colors: [color, color.withOpacity(0.7)],
+                          colors: [color, color.withValues(alpha: 0.7)],
                           begin: Alignment.topLeft, end: Alignment.bottomRight),
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -77,7 +77,7 @@ class PromocionesWidget extends StatelessWidget {
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         if (sub.isNotEmpty)
                           Text(sub, style: TextStyle(
-                              color: Colors.white.withOpacity(0.8), fontSize: 12),
+                              color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                       ])),
                     ]),
@@ -127,8 +127,8 @@ class PromocionesWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: destacado
-                            ? Colors.amber.withOpacity(0.5)
-                            : const Color(0xFFFF6B00).withOpacity(0.2),
+                            ? Colors.amber.withValues(alpha: 0.5)
+                            : const Color(0xFFFF6B00).withValues(alpha: 0.2),
                       ),
                     ),
                     child: Column(
@@ -143,7 +143,7 @@ class PromocionesWidget extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.2),
+                              color: Colors.green.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text('-$descuento%',

@@ -307,7 +307,7 @@ class _NotificacionBannerState extends State<NotificacionBanner>
                 child: Material(
                   elevation: 12,
                   borderRadius: BorderRadius.circular(16),
-                  shadowColor: _color.withOpacity(0.4),
+                  shadowColor: _color.withValues(alpha: 0.4),
                   child: GestureDetector(
                     onTap: () {
                       _cerrar();
@@ -320,16 +320,16 @@ class _NotificacionBannerState extends State<NotificacionBanner>
                           horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                            colors: [_color, _color.withOpacity(0.85)]),
+                            colors: [_color, _color.withValues(alpha: 0.85)]),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.15)),
+                            color: Colors.white.withValues(alpha: 0.15)),
                       ),
                       child: Row(children: [
                         Container(
                           width: 40, height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Center(child: Text(_emoji,
@@ -347,7 +347,7 @@ class _NotificacionBannerState extends State<NotificacionBanner>
                               Text(_cuerpo!, maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                      color: Colors.white.withOpacity(0.85),
+                                      color: Colors.white.withValues(alpha: 0.85),
                                       fontSize: 12)),
                           ],
                         )),
@@ -355,7 +355,7 @@ class _NotificacionBannerState extends State<NotificacionBanner>
                         GestureDetector(
                           onTap: _cerrar,
                           child: Icon(Icons.close,
-                              color: Colors.white.withOpacity(0.6), size: 16),
+                              color: Colors.white.withValues(alpha: 0.6), size: 16),
                         ),
                       ]),
                     ),
@@ -431,7 +431,7 @@ class _NotifBadgeBtnState extends State<NotifBadgeBtn>
                     border: Border.all(
                         color: const Color(0xFF0F172A), width: 1.5),
                     boxShadow: [BoxShadow(
-                        color: Colors.red.withOpacity(
+                        color: Colors.red.withValues(alpha: 
                             0.4 + _pulse.value * 0.3),
                         blurRadius: 6, spreadRadius: 1)],
                   ),
@@ -552,15 +552,15 @@ class _PanelNotificaciones extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: leida
-                              ? Colors.white.withOpacity(0.04)
-                              : const Color(0xFFFF6B00).withOpacity(0.25),
+                              ? Colors.white.withValues(alpha: 0.04)
+                              : const Color(0xFFFF6B00).withValues(alpha: 0.25),
                         ),
                       ),
                       child: Row(children: [
                         Container(
                           width: 38, height: 38,
                           decoration: BoxDecoration(
-                            color: _colorTipo(tipo).withOpacity(0.15),
+                            color: _colorTipo(tipo).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Center(child: Text(

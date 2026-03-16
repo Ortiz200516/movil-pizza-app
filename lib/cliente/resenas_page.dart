@@ -253,10 +253,10 @@ class _TabMiResenaState extends State<_TabMiResena> {
         'fecha':         Timestamp.now(),
         'respuesta':     null,
       });
-      setState(() { _enviado = true; _enviando = false; });
+      if (mounted) setState(() { _enviado = true; _enviando = false; });
       _textoCtrl.clear();
     } catch (e) {
-      setState(() => _enviando = false);
+      if (mounted) setState(() => _enviando = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error: $e'), behavior: SnackBarBehavior.floating));
     }

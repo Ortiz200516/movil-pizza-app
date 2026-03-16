@@ -23,7 +23,7 @@ Color _colorEstado(String e) {
     case 'En camino':  return Colors.indigo;
     case 'Entregado':  return Colors.green;
     case 'Cancelado':  return Colors.red;
-    default:           return Colors.grey;
+    default:           return Colors.white38;
   }
 }
 

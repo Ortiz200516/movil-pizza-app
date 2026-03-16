@@ -134,10 +134,10 @@ class _PerfilPageState extends State<PerfilPage> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: _kOrange.withOpacity(0.1),
+                              color: _kOrange.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                  color: _kOrange.withOpacity(0.4)),
+                                  color: _kOrange.withValues(alpha: 0.4)),
                             ),
                             child: const Row(children: [
                               Icon(Icons.edit, size: 13, color: _kOrange),
@@ -329,7 +329,7 @@ class _PerfilPageState extends State<PerfilPage> {
         title: const Text('🔐 Cambiar contraseña', style: TextStyle(
             color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text('Te enviaremos un enlace a:\n$email',
-            style: TextStyle(color: Colors.grey.shade300)),
+            style: TextStyle(color: Colors.white54)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -441,7 +441,7 @@ class _HeaderPerfil extends StatelessWidget {
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ) : null,
               boxShadow: [BoxShadow(
-                  color: _kOrange.withOpacity(0.35),
+                  color: _kOrange.withValues(alpha: 0.35),
                   blurRadius: 24, spreadRadius: 2)],
             ),
             child: fotoUrl != null
@@ -460,7 +460,7 @@ class _HeaderPerfil extends StatelessWidget {
             child: Container(
               width: 30, height: 30,
               decoration: BoxDecoration(
-                color: subiendo ? Colors.grey : _kOrange,
+                color: subiendo ? Colors.white24 : _kOrange,
                 shape: BoxShape.circle,
                 border: Border.all(color: _kBg, width: 2),
               ),
@@ -479,14 +479,14 @@ class _HeaderPerfil extends StatelessWidget {
                 fontWeight: FontWeight.bold, color: Colors.white)),
         const SizedBox(height: 4),
         Text(email, style: TextStyle(
-            fontSize: 13, color: Colors.grey.shade400)),
+            fontSize: 13, color: Colors.white38)),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: nivel.color.withOpacity(0.15),
+            color: nivel.color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: nivel.color.withOpacity(0.4)),
+            border: Border.all(color: nivel.color.withValues(alpha: 0.4)),
           ),
           child: Text(nivel.label, style: TextStyle(
               fontSize: 12, color: nivel.color,
@@ -513,7 +513,7 @@ class _NivelCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: nivel.color.withOpacity(0.3)),
+        border: Border.all(color: nivel.color.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -529,13 +529,13 @@ class _NivelCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
             value: nivel.progreso, minHeight: 8,
-            backgroundColor: Colors.white.withOpacity(0.08),
+            backgroundColor: Colors.white.withValues(alpha: 0.08),
             valueColor: AlwaysStoppedAnimation(nivel.color),
           ),
         ),
         const SizedBox(height: 6),
         Text(nivel.descripcion, style: TextStyle(
-            color: nivel.color.withOpacity(0.7), fontSize: 11)),
+            color: nivel.color.withValues(alpha: 0.7), fontSize: 11)),
       ]),
     );
   }
@@ -555,16 +555,16 @@ class _StatsRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
         _StatItem('$total', 'Pedidos', Icons.receipt_long, Colors.blue),
         Container(width: 1, height: 40,
-            color: Colors.white.withOpacity(0.08)),
+            color: Colors.white.withValues(alpha: 0.08)),
         _StatItem('$entregados', 'Entregados',
             Icons.check_circle, Colors.green),
         Container(width: 1, height: 40,
-            color: Colors.white.withOpacity(0.08)),
+            color: Colors.white.withValues(alpha: 0.08)),
         _StatItem('\$${gastado.toStringAsFixed(0)}', 'Gastado',
             Icons.attach_money, _kOrange),
       ]),
@@ -584,7 +584,7 @@ class _StatItem extends StatelessWidget {
     Text(value, style: TextStyle(fontSize: 18,
         fontWeight: FontWeight.bold, color: color)),
     Text(label, style: TextStyle(
-        fontSize: 11, color: Colors.grey.shade500)),
+        fontSize: 11, color: Colors.white38)),
   ]);
 }
 
@@ -619,10 +619,10 @@ class _DireccionesSection extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _kOrange.withOpacity(0.1),
+                    color: _kOrange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: _kOrange.withOpacity(0.4)),
+                        color: _kOrange.withValues(alpha: 0.4)),
                   ),
                   child: const Row(children: [
                     Icon(Icons.add, size: 13, color: _kOrange),
@@ -643,7 +643,7 @@ class _DireccionesSection extends StatelessWidget {
                   color: _kCard,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: Colors.white.withOpacity(0.06)),
+                      color: Colors.white.withValues(alpha: 0.06)),
                 ),
                 child: const Column(children: [
                   Text('📍', style: TextStyle(fontSize: 28)),
@@ -700,7 +700,7 @@ class _DireccionesSection extends StatelessWidget {
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
-                      color: _kOrange.withOpacity(0.3))),
+                      color: _kOrange.withValues(alpha: 0.3))),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(
@@ -753,7 +753,7 @@ class _DireccionTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       border: Border.all(
         color: esPredeterminada
-            ? _kOrange.withOpacity(0.4) : Colors.white.withOpacity(0.06)),
+            ? _kOrange.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.06)),
     ),
     child: Row(children: [
       Icon(esPredeterminada ? Icons.home : Icons.location_on,
@@ -821,13 +821,13 @@ class _PedidosRecientes extends StatelessWidget {
                   color: _kCard,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: color.withOpacity(0.25)),
+                      color: color.withValues(alpha: 0.25)),
                 ),
                 child: Row(children: [
                   Container(
                     width: 40, height: 40,
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(child: Text(
@@ -856,7 +856,7 @@ class _PedidosRecientes extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.12),
+                        color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(estado, style: TextStyle(
@@ -923,18 +923,18 @@ class _CuponesSection extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
-                  _kOrange.withOpacity(0.12), _kCard,
+                  _kOrange.withValues(alpha: 0.12), _kCard,
                 ]),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: _kOrange.withOpacity(0.35)),
+                    color: _kOrange.withValues(alpha: 0.35)),
               ),
               child: Row(children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: _kOrange.withOpacity(0.15),
+                    color: _kOrange.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(label, style: const TextStyle(
@@ -986,14 +986,14 @@ class _InfoTile extends StatelessWidget {
     decoration: BoxDecoration(
       color: _kCard,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.05)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
     ),
     child: Row(children: [
       Icon(icon, size: 18, color: _kOrange),
       const SizedBox(width: 12),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: TextStyle(
-            fontSize: 11, color: Colors.grey.shade500)),
+            fontSize: 11, color: Colors.white38)),
         Text(value, style: const TextStyle(
             fontSize: 14, color: Colors.white,
             fontWeight: FontWeight.w500)),
@@ -1015,13 +1015,13 @@ class _CampoEditable extends StatelessWidget {
     style: const TextStyle(color: Colors.white),
     decoration: InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.grey.shade400),
+      labelStyle: TextStyle(color: Colors.white38),
       prefixIcon: Icon(icon, color: _kOrange),
       filled: true, fillColor: _kBg,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade700)),
+          borderSide: BorderSide(color: Colors.white12)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _kOrange)),
@@ -1042,9 +1042,9 @@ class _SeccionBtn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(children: [
         Icon(icon, color: color, size: 20),
@@ -1052,7 +1052,7 @@ class _SeccionBtn extends StatelessWidget {
         Text(label, style: TextStyle(
             fontSize: 15, color: color, fontWeight: FontWeight.w600)),
         const Spacer(),
-        Icon(Icons.chevron_right, color: color.withOpacity(0.5)),
+        Icon(Icons.chevron_right, color: color.withValues(alpha: 0.5)),
       ]),
     ),
   );
@@ -1063,7 +1063,7 @@ class _SeccionApariencia extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme  = context.watch<ThemeProvider>();
-    final oscuro = theme.oscuro;
+    final oscuro = theme.isDark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -1113,11 +1113,11 @@ class _SeccionApariencia extends StatelessWidget {
               ])),
               Switch(
                 value: oscuro,
-                onChanged: (_) => theme.toggleTema(),
+                onChanged: (_) => theme.toggleTheme(),
                 activeThumbColor: _kOrange,
-                activeTrackColor: _kOrange.withOpacity(0.3),
-                inactiveThumbColor: Colors.grey,
-                inactiveTrackColor: Colors.grey.withOpacity(0.2),
+                activeTrackColor: _kOrange.withValues(alpha: 0.3),
+                inactiveThumbColor: Colors.white24,
+                inactiveTrackColor: Colors.white.withValues(alpha: 0.12),
               ),
             ]),
           ),

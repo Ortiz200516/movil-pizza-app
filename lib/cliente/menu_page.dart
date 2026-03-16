@@ -68,7 +68,7 @@ class _MenuPageState extends State<MenuPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw   = prefs.getString('menu_cache');
-      if (raw != null) {
+      if (raw != null && mounted) {
         final list = jsonDecode(raw) as List;
         setState(() {
           _cache = list.map((m) => ProductoModel.fromFirestore(
@@ -99,52 +99,44 @@ class _MenuPageState extends State<MenuPage> {
         physics: const BouncingScrollPhysics(),
         slivers: [
 
-          // Header colapsable
-          SliverAppBar(
-            backgroundColor: _kBg,
-            expandedHeight: 80,
-            floating: true,
-            snap: true,
-            elevation: 0,
-            automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF1A0A00), _kBg],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+          // Header fijo — SliverToBoxAdapter evita superposición
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1A0A00), _kBg],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: Row(children: [
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Nuestro Menú',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900)),
-                      Text('Elige tu favorita 🍕',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              fontSize: 12)),
-                    ],
-                  )),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: _kNaranja.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: _kNaranja.withValues(alpha: 0.3)),
-                    ),
-                    child: const Text('🍕', style: TextStyle(fontSize: 26)),
-                  ),
-                ]),
               ),
+              child: Row(children: [
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Nuestro Menú',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900)),
+                    Text('Elige tu favorita 🍕',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 12)),
+                  ],
+                )),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _kNaranja.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: _kNaranja.withValues(alpha: 0.3)),
+                  ),
+                  child: const Text('🍕', style: TextStyle(fontSize: 26)),
+                ),
+              ]),
             ),
           ),
 

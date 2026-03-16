@@ -17,6 +17,7 @@ import '../admin/dashboard_page.dart';
 import '../admin/cupones_page.dart';
 import '../admin/info_local_admin_page.dart';
 import '../admin/cierre_caja_page.dart';
+import '../admin/reservas_admin_page.dart';
 import '../services/fidelidad_service.dart';
 
 const _estadosActivos = ['Pendiente', 'Preparando', 'Listo', 'En camino'];
@@ -65,7 +66,7 @@ class _HomeAdminState extends State<HomeAdmin> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 11,
+      length: 12,
       child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: const Color(0xFF111827),
@@ -123,6 +124,7 @@ class _HomeAdminState extends State<HomeAdmin> {
               Tab(icon: Icon(Icons.store_outlined, size: 20), text: 'Info Local'),
               Tab(icon: Icon(Icons.point_of_sale, size: 20), text: 'Caja'),
               Tab(icon: Icon(Icons.stars_rounded, size: 20), text: 'Fidelidad'),
+              Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Reservas'),
             ],
           ),
           actions: [
@@ -158,6 +160,7 @@ class _HomeAdminState extends State<HomeAdmin> {
             const InfoLocalAdminPage(),
             const CierreCajaPage(),
             const _FidelidadAdminTab(),
+            const ReservasAdminPage(),
           ],
         ),
         floatingActionButton: Builder(

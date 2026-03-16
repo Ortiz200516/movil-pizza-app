@@ -126,7 +126,7 @@ class _PromocionesAdminPageState extends State<PromocionesAdminPage>
                   width: 40, height: 40,
                   decoration: BoxDecoration(
                     color: emoji == e
-                        ? const Color(0xFFFF6B00).withOpacity(0.2)
+                        ? const Color(0xFFFF6B00).withValues(alpha: 0.2)
                         : const Color(0xFF0F172A),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: emoji == e
@@ -451,7 +451,7 @@ class _TabBanners extends StatelessWidget {
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: (activo && !expirado)
-                    ? c.withOpacity(0.4) : Colors.white12),
+                    ? c.withValues(alpha: 0.4) : Colors.white12),
               ),
               child: Column(children: [
                 // Preview miniatura
@@ -462,7 +462,7 @@ class _TabBanners extends StatelessWidget {
                   leading: Container(
                     width: 40, height: 40,
                     decoration: BoxDecoration(
-                        color: c.withOpacity(0.15),
+                        color: c.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10)),
                     child: Center(child: Text(emoji,
                         style: const TextStyle(fontSize: 22))),
@@ -565,9 +565,9 @@ class _TabCombos extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: destacado
-                      ? Colors.amber.withOpacity(0.5)
+                      ? Colors.amber.withValues(alpha: 0.5)
                       : (activo && !expirado)
-                          ? const Color(0xFFFF6B00).withOpacity(0.3)
+                          ? const Color(0xFFFF6B00).withValues(alpha: 0.3)
                           : Colors.white12,
                 ),
               ),
@@ -577,8 +577,8 @@ class _TabCombos extends StatelessWidget {
                   width: 56, height: 56,
                   decoration: BoxDecoration(
                     color: destacado
-                        ? Colors.amber.withOpacity(0.15)
-                        : const Color(0xFFFF6B00).withOpacity(0.1),
+                        ? Colors.amber.withValues(alpha: 0.15)
+                        : const Color(0xFFFF6B00).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(child: Text(emoji,
@@ -670,7 +670,7 @@ class _PreviewBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-            colors: [color, color.withOpacity(0.7)],
+            colors: [color, color.withValues(alpha: 0.7)],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -683,7 +683,7 @@ class _PreviewBanner extends StatelessWidget {
                   fontWeight: FontWeight.w900, fontSize: 16)),
           if (subtitulo.isNotEmpty)
             Text(subtitulo, style: TextStyle(
-                color: Colors.white.withOpacity(0.8), fontSize: 12)),
+                color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
         ])),
       ]),
     );
@@ -705,7 +705,7 @@ Widget _vacio(String titulo, String sub) => Center(
 
 Widget _chip(String label, Color color) => Container(
   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-  decoration: BoxDecoration(color: color.withOpacity(0.15),
+  decoration: BoxDecoration(color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(4)),
   child: Text(label, style: TextStyle(color: color,
       fontSize: 9, fontWeight: FontWeight.bold)),
