@@ -7,6 +7,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_services.dart';
+import '../services/fidelidad_service.dart';
+import '../cliente/fidelidad_page.dart';
 import '../services/theme_provider.dart';
 import '../auth/login_page.dart';
 
@@ -77,7 +79,7 @@ class _PerfilPageState extends State<PerfilPage> {
 
         return StreamBuilder<QuerySnapshot>(
           stream: _db.collection('pedidos')
-              .where('userId', isEqualTo: user.uid)
+              .where('clienteId', isEqualTo: user.uid)
               .snapshots(),
           builder: (context, pedSnap) {
             final pedidos = pedSnap.data?.docs ?? [];
@@ -211,6 +213,28 @@ class _PerfilPageState extends State<PerfilPage> {
                 // ── Pedidos recientes ─────────────────────
                 _PedidosRecientes(userId: user.uid),
                 const SizedBox(height: 20),
+
+                // ── Puntos de fidelidad ──────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _PuntosSection(userId: user.uid),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Logros ───────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _LogrosSection(
+                      entregados: entregados, gastado: gastado),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Gráfica actividad mensual ─────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _GraficaActividad(userId: user.uid),
+                ),
+                const SizedBox(height: 12),
 
                 // ── Cupones ──────────────────────────────
                 Padding(
@@ -791,7 +815,7 @@ class _PedidosRecientes extends StatelessWidget {
           .collection('pedidos')
           .where('userId', isEqualTo: userId)
           .orderBy('fecha', descending: true)
-          .limit(3)
+          .limit(5)
           .snapshots(),
       builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
@@ -1126,3 +1150,350 @@ class _SeccionApariencia extends StatelessWidget {
     );
   }
 }
+
+// ── Sección de puntos de fidelidad ───────────────────────────────────────────
+class _PuntosSection extends StatelessWidget {
+  final String userId;
+  const _PuntosSection({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: FidelidadService().streamPuntos(),
+      builder: (_, snap) {
+        final data    = snap.data ?? {'puntos': 0, 'puntosHistorico': 0, 'puntosCanjeados': 0};
+        final puntos  = data['puntos'] as int;
+        final hist    = data['puntosHistorico'] as int;
+        final canjeados = data['puntosCanjeados'] as int;
+        final nivel   = nivelDePuntos(puntos);
+        final color   = Color(int.parse('FF${nivel.colorHex}', radix: 16));
+
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _SecTitulo('⭐ Puntos de fidelidad', color),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Column(children: [
+              Row(children: [
+                Text(nivel.emoji, style: const TextStyle(fontSize: 32)),
+                const SizedBox(width: 12),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Nivel ${nivel.nombre}', style: TextStyle(
+                      color: color, fontWeight: FontWeight.w800,
+                      fontSize: 16)),
+                  Text('${nivel.multiplicador}x puntos por pedido',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.35),
+                          fontSize: 11)),
+                ])),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('$puntos', style: TextStyle(
+                      color: color, fontWeight: FontWeight.w900,
+                      fontSize: 28)),
+                  Text('puntos', style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      fontSize: 11)),
+                ]),
+              ]),
+              const SizedBox(height: 14),
+              // Barra progreso al siguiente nivel
+              Builder(builder: (_) {
+                final idx = kNiveles.indexOf(nivel);
+                final sig = idx < kNiveles.length - 1
+                    ? kNiveles[idx + 1] : null;
+                final pct = sig == null ? 1.0
+                    : (puntos - nivel.puntosMin) /
+                      (sig.puntosMin - nivel.puntosMin).clamp(1, double.infinity);
+                return Column(children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct.clamp(0.0, 1.0), minHeight: 8,
+                      backgroundColor: Colors.white.withValues(alpha: 0.07),
+                      valueColor: AlwaysStoppedAnimation(color),
+                    ),
+                  ),
+                  if (sig != null) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'Faltan ${sig.puntosMin - puntos} pts para ${sig.emoji} ${sig.nombre}',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 11)),
+                  ],
+                ]);
+              }),
+              const SizedBox(height: 14),
+              Row(children: [
+                _MiniStat('Disponibles', '$puntos', color),
+                _MiniStat('Ganados', '$hist', Colors.green),
+                _MiniStat('Canjeados', '$canjeados', Colors.orange),
+                _MiniStat('Valor', '\$${puntosToDolares(puntos).toStringAsFixed(2)}', Colors.purple),
+              ]),
+            ]),
+          ),
+        ]);
+      },
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label, valor;
+  final Color color;
+  const _MiniStat(this.label, this.valor, this.color);
+  @override
+  Widget build(BuildContext context) => Expanded(child: Column(children: [
+    Text(valor, style: TextStyle(color: color,
+        fontWeight: FontWeight.w900, fontSize: 14)),
+    Text(label, style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.3), fontSize: 9),
+        textAlign: TextAlign.center),
+  ]));
+}
+
+// ── Sección de logros / badges ────────────────────────────────────────────────
+class _LogrosSection extends StatelessWidget {
+  final int entregados;
+  final double gastado;
+  const _LogrosSection({required this.entregados, required this.gastado});
+
+  @override
+  Widget build(BuildContext context) {
+    final logros = [
+      _Logro('🍕', 'Primer pedido',  'Hiciste tu primer pedido',
+          entregados >= 1,  entregados, 1),
+      _Logro('🔥', 'Asiduo',         '5 pedidos completados',
+          entregados >= 5,  entregados, 5),
+      _Logro('⭐', 'Cliente fiel',   '10 pedidos completados',
+          entregados >= 10, entregados, 10),
+      _Logro('💎', 'VIP',            '20 pedidos completados',
+          entregados >= 20, entregados, 20),
+      _Logro('💰', 'Gran gastador',  'Gastaste más de \$100',
+          gastado >= 100,   gastado.toInt(), 100),
+      _Logro('🏆', 'Megafan',        'Gastaste más de \$500',
+          gastado >= 500,   gastado.toInt(), 500),
+    ];
+
+    final obtenidos = logros.where((l) => l.obtenido).length;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        _SecTitulo('🏅 Logros', _kOrange),
+        const Spacer(),
+        Text('$obtenidos/${logros.length}',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.3),
+                fontSize: 12)),
+      ]),
+      const SizedBox(height: 10),
+      GridView.count(
+        crossAxisCount: 3,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1.0,
+        children: logros.map((l) => _LogroCard(logro: l)).toList(),
+      ),
+    ]);
+  }
+}
+
+class _Logro {
+  final String emoji, titulo, desc;
+  final bool obtenido;
+  final int progActual, progTotal;
+  const _Logro(this.emoji, this.titulo, this.desc,
+      this.obtenido, this.progActual, this.progTotal);
+}
+
+class _LogroCard extends StatelessWidget {
+  final _Logro logro;
+  const _LogroCard({required this.logro});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (logro.progActual / logro.progTotal).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: logro.obtenido
+            ? _kOrange.withValues(alpha: 0.08) : _kCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: logro.obtenido
+              ? _kOrange.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.06),
+          width: logro.obtenido ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(logro.obtenido ? logro.emoji : '🔒',
+            style: TextStyle(
+                fontSize: 26,
+                color: logro.obtenido ? null : null)),
+        const SizedBox(height: 4),
+        Text(logro.titulo, textAlign: TextAlign.center,
+            style: TextStyle(
+                color: logro.obtenido
+                    ? Colors.white : Colors.white38,
+                fontSize: 10, fontWeight: FontWeight.w700),
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+        if (!logro.obtenido) ...[
+          const SizedBox(height: 5),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: pct, minHeight: 3,
+              backgroundColor: Colors.white.withValues(alpha: 0.06),
+              valueColor: AlwaysStoppedAnimation(
+                  _kOrange.withValues(alpha: 0.5)),
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 3),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text('✓ Obtenido',
+                style: TextStyle(color: Colors.green,
+                    fontSize: 8, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
+// ── Gráfica de actividad mensual ──────────────────────────────────────────────
+class _GraficaActividad extends StatelessWidget {
+  final String userId;
+  const _GraficaActividad({required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    // Últimos 6 meses
+    final ahora   = DateTime.now();
+    final inicio6 = DateTime(ahora.year, ahora.month - 5, 1);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('pedidos')
+          .where('clienteId', isEqualTo: userId)
+          .where('estado', isEqualTo: 'Entregado')
+          .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicio6))
+          .snapshots(),
+      builder: (_, snap) {
+        const meses = ['','Ene','Feb','Mar','Abr','May','Jun',
+            'Jul','Ago','Sep','Oct','Nov','Dic'];
+
+        // Construir datos por mes
+        final Map<String, int> porMes = {};
+        for (int i = 5; i >= 0; i--) {
+          final m = DateTime(ahora.year, ahora.month - i, 1);
+          final key = '${meses[m.month]}${m.year != ahora.year ? ' ${m.year}' : ''}';
+          porMes[key] = 0;
+        }
+
+        for (final doc in snap.data?.docs ?? []) {
+          final fecha = ((doc.data() as Map)['fecha'] as Timestamp?)
+              ?.toDate();
+          if (fecha == null) continue;
+          final key = '${meses[fecha.month]}${fecha.year != ahora.year ? ' ${fecha.year}' : ''}';
+          if (porMes.containsKey(key)) {
+            porMes[key] = porMes[key]! + 1;
+          }
+        }
+
+        final maxV = porMes.values.isEmpty ? 1
+            : porMes.values.reduce((a, b) => a > b ? a : b);
+        final total = porMes.values.fold(0, (a, b) => a + b);
+
+        return Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Row(children: [
+            _SecTitulo('📊 Actividad', Colors.purple),
+            const Spacer(),
+            Text('$total pedidos en 6 meses',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontSize: 11)),
+          ]),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Column(children: [
+              SizedBox(
+                height: 80,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: porMes.entries.map((e) {
+                    final pct  = maxV > 0 ? e.value / maxV : 0.0;
+                    final barH = (pct * 60).clamp(3.0, 60.0);
+                    final esActual = e.key.startsWith(meses[ahora.month]);
+                    return Expanded(child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                      if (e.value > 0)
+                        Text('${e.value}', style: TextStyle(
+                            color: esActual
+                                ? _kOrange : Colors.white38,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 400),
+                        height: barH,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          color: esActual
+                              ? _kOrange
+                              : _kOrange.withValues(alpha: 0.35),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(4)),
+                        ),
+                      ),
+                    ]));
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: porMes.keys.map((k) => Expanded(
+                  child: Text(k.split(' ').first,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 9)),
+                )).toList(),
+              ),
+            ]),
+          ),
+        ]);
+      },
+    );
+  }
+}
+
+// ── Helper: título de sección ─────────────────────────────────────────────────
+Widget _SecTitulo(String titulo, Color color) => Text(titulo,
+    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+        color: color.withValues(alpha: 0.9)));

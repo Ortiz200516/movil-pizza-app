@@ -1,11 +1,24 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_services.dart';
+import '../services/launcher_service.dart';
 import '../services/ubicacion_service.dart';
 import '../services/notificacion_service.dart';
 import '../models/pedido_model.dart';
 import '../pedidos/pedidos_service.dart';
+
+// ── Paleta ────────────────────────────────────────────────────────────────────
+const _kBg    = Color(0xFF0F172A);
+const _kCard  = Color(0xFF1E293B);
+const _kCard2 = Color(0xFF263348);
+const _kIndigo = Color(0xFF6366F1);
+const _kVerde  = Color(0xFF4ADE80);
+const _kAzul   = Color(0xFF38BDF8);
+const _kNar    = Color(0xFFFF6B35);
+const _kAmb    = Color(0xFFFFD700);
 
 class HomeRepartidor extends StatefulWidget {
   const HomeRepartidor({super.key});
@@ -13,62 +26,144 @@ class HomeRepartidor extends StatefulWidget {
   State<HomeRepartidor> createState() => _HomeRepartidorState();
 }
 
-class _HomeRepartidorState extends State<HomeRepartidor> {
+class _HomeRepartidorState extends State<HomeRepartidor>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
   final user = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     if (user == null) {
-      return const Scaffold(
-          body: Center(child: Text('Error: sin sesión')));
+      return const Scaffold(backgroundColor: _kBg,
+          body: Center(child: Text('Sin sesión',
+              style: TextStyle(color: Colors.white))));
     }
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: Colors.white.withValues(alpha: 0.05),
-        appBar: AppBar(
-          title: const Text('🛵 Panel Repartidor'),
-          backgroundColor: Colors.indigo,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          actions: [
-            _ToggleDisponible(uid: user!.uid),
-            NotifBadgeBtn(uid: user!.uid, rol: 'repartidor'),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                await AuthService().logout();
-                if (context.mounted) {
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil('/', (_) => false);
-                }
-              },
-            ),
-          ],
-          bottom: const TabBar(
-            indicatorColor: Colors.white,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white60,
-            labelStyle:
-                TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            tabs: [
-              Tab(icon: Icon(Icons.inbox, size: 20),
-                  text: 'Disponibles'),
-              Tab(icon: Icon(Icons.delivery_dining, size: 20),
-                  text: 'Mis entregas'),
-              Tab(icon: Icon(Icons.bar_chart, size: 20),
-                  text: 'Mi día'),
-            ],
+
+    return Scaffold(
+      backgroundColor: _kBg,
+      appBar: _RepartidorAppBar(
+          uid: user!.uid, tabController: _tab),
+      body: TabBarView(
+        controller: _tab,
+        children: [
+          _TabDisponibles(repartidorId: user!.uid),
+          _TabMisEntregas(repartidorId: user!.uid),
+          _TabMiDia(repartidorId: user!.uid),
+        ],
+      ),
+    );
+  }
+}
+
+// ── AppBar mejorado ───────────────────────────────────────────────────────────
+class _RepartidorAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  final String uid;
+  final TabController tabController;
+  const _RepartidorAppBar(
+      {required this.uid, required this.tabController});
+
+  @override
+  Size get preferredSize => const Size.fromHeight(106);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: const Color(0xFF0D1B2A),
+      elevation: 0,
+      titleSpacing: 16,
+      title: Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _kIndigo.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: _kIndigo.withValues(alpha: 0.4)),
           ),
+          child: const Row(children: [
+            Text('🛵', style: TextStyle(fontSize: 16)),
+            SizedBox(width: 6),
+            Text('REPARTIDOR', style: TextStyle(
+                color: _kIndigo, fontWeight: FontWeight.w900,
+                fontSize: 13, letterSpacing: 1.5)),
+          ]),
         ),
-        body: TabBarView(
-          children: [
-            _TabDisponibles(repartidorId: user!.uid),
-            _TabMisEntregas(repartidorId: user!.uid),
-            _TabMiDia(repartidorId: user!.uid),
-          ],
+        const SizedBox(width: 10),
+        _ToggleDisponible(uid: uid),
+      ]),
+      actions: [
+        // Badge pedidos disponibles
+        StreamBuilder<List<PedidoModel>>(
+          stream: PedidoService().obtenerPedidosDomicilio(),
+          builder: (_, snap) {
+            final disponibles = (snap.data ?? [])
+                .where((p) => p.estado == 'Listo' &&
+                    (p.repartidorId == null ||
+                        p.repartidorId!.isEmpty))
+                .length;
+            if (disponibles == 0) return const SizedBox.shrink();
+            return Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _kVerde.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                    color: _kVerde.withValues(alpha: 0.4)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('📦', style: TextStyle(fontSize: 11)),
+                const SizedBox(width: 4),
+                Text('$disponibles',
+                    style: const TextStyle(
+                        color: _kVerde,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
+              ]),
+            );
+          },
         ),
+        NotifBadgeBtn(uid: uid, rol: 'repartidor'),
+        IconButton(
+          icon: const Icon(Icons.logout_rounded,
+              color: Colors.white38, size: 20),
+          onPressed: () async {
+            await AuthService().logout();
+            if (context.mounted) {
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/', (_) => false);
+            }
+          },
+        ),
+      ],
+      bottom: TabBar(
+        controller: tabController,
+        indicatorColor: _kIndigo,
+        indicatorWeight: 3,
+        labelColor: _kIndigo,
+        unselectedLabelColor: Colors.white38,
+        labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold, fontSize: 12),
+        tabs: const [
+          Tab(icon: Icon(Icons.inbox_outlined, size: 18),
+              text: 'Disponibles'),
+          Tab(icon: Icon(Icons.delivery_dining, size: 18),
+              text: 'En camino'),
+          Tab(icon: Icon(Icons.bar_chart_rounded, size: 18),
+              text: 'Mi día'),
+        ],
       ),
     );
   }
@@ -84,47 +179,49 @@ class _ToggleDisponible extends StatelessWidget {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users').doc(uid).snapshots(),
-      builder: (context, snap) {
-        final disponible =
-            (snap.data?.data() as Map<String, dynamic>?)
-                ?['disponible'] as bool? ?? false;
+      builder: (_, snap) {
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        final disponible = data?['disponible'] as bool? ?? true;
         return GestureDetector(
-          onTap: () => FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .update({'disponible': !disponible}),
-          child: Container(
-            margin: const EdgeInsets.symmetric(
-                vertical: 10, horizontal: 4),
+          onTap: () async {
+            HapticFeedback.mediumImpact();
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .update({'disponible': !disponible});
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(
-                horizontal: 10, vertical: 4),
+                horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: disponible
-                  ? Colors.green.withValues(alpha: 0.25)
-                  : Colors.white.withValues(alpha: 0.1),
+                  ? _kVerde.withValues(alpha: 0.15)
+                  : Colors.red.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                  color: disponible
-                      ? Colors.green
-                      : Colors.white30),
+                color: disponible
+                    ? _kVerde.withValues(alpha: 0.5)
+                    : Colors.red.withValues(alpha: 0.4),
+              ),
             ),
-            child: Row(children: [
-              Icon(
-                  disponible
-                      ? Icons.circle
-                      : Icons.circle_outlined,
-                  size: 10,
-                  color: disponible
-                      ? Colors.green
-                      : Colors.white54),
-              const SizedBox(width: 5),
-              Text(disponible ? 'Activo' : 'Inactivo',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: disponible
-                          ? Colors.green
-                          : Colors.white54)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 7, height: 7,
+                decoration: BoxDecoration(
+                  color: disponible ? _kVerde : Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                disponible ? 'En servicio' : 'No disponible',
+                style: TextStyle(
+                  color: disponible ? _kVerde : Colors.red,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
             ]),
           ),
         );
@@ -133,7 +230,7 @@ class _ToggleDisponible extends StatelessWidget {
   }
 }
 
-// ══════════════════ TAB 1: DISPONIBLES ═══════════════════════════════════════
+// ══════════════════════ TAB 1: DISPONIBLES ═══════════════════════════════════
 class _TabDisponibles extends StatelessWidget {
   final String repartidorId;
   const _TabDisponibles({required this.repartidorId});
@@ -142,40 +239,40 @@ class _TabDisponibles extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<PedidoModel>>(
       stream: PedidoService().obtenerPedidosDomicilio(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: Colors.indigo));
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting &&
+            !snap.hasData) {
+          return const Center(child: CircularProgressIndicator(
+              color: _kIndigo));
         }
-        final todos = snap.data ?? [];
-        final disponibles = todos
+        final disponibles = (snap.data ?? [])
             .where((p) =>
                 p.estado == 'Listo' &&
                 (p.repartidorId == null ||
                     p.repartidorId!.isEmpty))
-            .toList();
+            .toList()
+          ..sort((a, b) => a.fecha.compareTo(b.fecha));
 
         if (disponibles.isEmpty) {
-          return Center(
-            child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-              const Text('📦', style: TextStyle(fontSize: 70)),
-              const SizedBox(height: 16),
-              const Text('No hay pedidos disponibles',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white38)),
-              const SizedBox(height: 8),
-              const Text('Espera nuevas entregas',
-                  style: TextStyle(color: Colors.white24)),
-            ]),
-          );
+          return Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+            const Text('📦',
+                style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 16),
+            const Text('Sin pedidos disponibles',
+                style: TextStyle(color: Colors.white,
+                    fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text('Los pedidos listos aparecerán aquí',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontSize: 13)),
+          ]));
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           itemCount: disponibles.length,
           itemBuilder: (_, i) => _CardDisponible(
               pedido: disponibles[i],
@@ -198,197 +295,228 @@ class _CardDisponible extends StatefulWidget {
 class _CardDisponibleState extends State<_CardDisponible> {
   bool _tomando = false;
 
+  String _tiempoStr(DateTime f) {
+    final diff = DateTime.now().difference(f);
+    if (diff.inMinutes < 1) return 'Justo ahora';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min esperando';
+    return '${diff.inHours}h ${diff.inMinutes % 60}m esperando';
+  }
+
+  Color _tiempoColor(DateTime f) {
+    final mins = DateTime.now().difference(f).inMinutes;
+    if (mins >= 20) return Colors.red;
+    if (mins >= 10) return Colors.orange;
+    return Colors.white38;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final p = widget.pedido;
+    final p       = widget.pedido;
+    final dir     = p.direccionEntrega?['direccion'] ?? 'Sin dirección';
+    final ref     = p.direccionEntrega?['referencia'] ?? '';
+    final metodo  = p.metodoPago;
+    final esTrans = metodo == 'transferencia';
+    final tColor  = _tiempoColor(p.fecha);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: _kCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: Colors.indigo.withValues(alpha: 0.4)),
+        border: Border.all(color: _kVerde.withValues(alpha: 0.25),
+            width: 1.5),
       ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-        // Header verde
+        // Header
         Container(
           padding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 10),
+              horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.12),
+            color: _kVerde.withValues(alpha: 0.07),
             borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16)),
-            border: Border(
-                bottom: BorderSide(
-                    color:
-                        Colors.green.withValues(alpha: 0.25))),
+                top: Radius.circular(14)),
           ),
           child: Row(children: [
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: BorderRadius.circular(20)),
-              child: const Text('✅ LISTO',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12)),
+                color: _kVerde.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: _kVerde.withValues(alpha: 0.4)),
+              ),
+              child: const Text('✅ LISTO PARA ENTREGAR',
+                  style: TextStyle(color: _kVerde,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11)),
             ),
             const Spacer(),
-            Text('#${p.id.substring(0, 6).toUpperCase()}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white38)),
-            const SizedBox(width: 8),
-            Text(_tiempoTranscurrido(p.fecha),
-                style: const TextStyle(
-                    color: Colors.white38, fontSize: 12)),
+            Icon(Icons.timer_outlined, size: 12, color: tColor),
+            const SizedBox(width: 4),
+            Text(_tiempoStr(p.fecha),
+                style: TextStyle(color: tColor, fontSize: 11)),
           ]),
         ),
 
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+            // Cliente + teléfono
             Row(children: [
-              const Icon(Icons.person,
-                  size: 18, color: Colors.indigo),
+              const Icon(Icons.person_outline,
+                  size: 16, color: _kIndigo),
               const SizedBox(width: 6),
-              Text(p.clienteNombre,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white)),
-              if (p.clienteTelefono != null) ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.phone,
-                    size: 14, color: Colors.white24),
-                const SizedBox(width: 2),
-                Text(p.clienteTelefono!,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.white38)),
-              ],
+              Expanded(child: Text(p.clienteNombre,
+                  style: const TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w700, fontSize: 15))),
+              if (p.clienteTelefono != null)
+                GestureDetector(
+                  onTap: () => LauncherService.llamar(p.clienteTelefono!),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _kVerde.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: _kVerde.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                      Icon(Icons.call_outlined,
+                          size: 13, color: _kVerde),
+                      SizedBox(width: 4),
+                      Text('Llamar', style: TextStyle(
+                          color: _kVerde, fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // Dirección
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10)),
+                color: Colors.red.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: Colors.red.withValues(alpha: 0.15)),
+              ),
               child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                 Row(children: [
                   const Icon(Icons.location_on,
-                      size: 16, color: Colors.red),
+                      size: 15, color: Colors.redAccent),
                   const SizedBox(width: 6),
-                  Expanded(
-                      child: Text(
-                          p.direccionEntrega?[
-                                  'direccion'] ??
-                              'Sin dirección',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: Colors.white))),
+                  Expanded(child: Text(dir,
+                      style: const TextStyle(color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13))),
                 ]),
-                if ((p.direccionEntrega?['referencia'] ??
-                            '')
-                        .toString()
-                        .isNotEmpty) ...[
+                if (ref.toString().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Row(children: [
                     const Icon(Icons.info_outline,
-                        size: 14, color: Colors.white38),
+                        size: 13, color: Colors.white24),
                     const SizedBox(width: 6),
-                    Expanded(
-                        child: Text(
-                            p.direccionEntrega![
-                                    'referencia']
-                                .toString(),
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white38))),
+                    Expanded(child: Text(ref.toString(),
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 11))),
                   ]),
                 ],
               ]),
             ),
             const SizedBox(height: 10),
 
-            // Productos
+            // Productos (top 3)
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: BorderRadius.circular(10)),
+                color: _kCard2,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                const Text('Contenido:',
+                Text('📦 ${p.items.length} producto${p.items.length == 1 ? '' : 's'}',
                     style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Colors.white70)),
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 11, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 ...p.items.take(3).map((i) => Text(
-                    '  ${i['cantidad']}× '
-                    '${i['productoNombre'] ?? i['nombre'] ?? ''}',
+                    '  ${i['cantidad']}× ${i['productoNombre'] ?? i['nombre'] ?? ''}',
                     style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70))),
+                        color: Colors.white70, fontSize: 12))),
                 if (p.items.length > 3)
-                  Text(
-                      '  ...y ${p.items.length - 3} más',
-                      style: const TextStyle(
-                          color: Colors.white38,
-                          fontSize: 12)),
+                  Text('  +${p.items.length - 3} más',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 11)),
               ]),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
+            // Total + método + botón tomar
             Row(children: [
-              Text('\$${p.total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green)),
+              Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text('\$${p.total.toStringAsFixed(2)}',
+                    style: const TextStyle(color: _kVerde,
+                        fontWeight: FontWeight.w900, fontSize: 22)),
+                Row(children: [
+                  Icon(
+                    esTrans ? Icons.account_balance_outlined
+                        : metodo == 'tarjeta'
+                            ? Icons.credit_card_outlined
+                            : Icons.payments_outlined,
+                    size: 12,
+                    color: esTrans ? _kAmb : Colors.white38,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(metodo.toUpperCase(),
+                      style: TextStyle(
+                          color: esTrans ? _kAmb : Colors.white38,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ]),
               const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _tomando
-                    ? null
+              GestureDetector(
+                onTap: _tomando ? null
                     : () => _tomarPedido(context),
-                icon: _tomando
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white))
-                    : const Icon(Icons.delivery_dining),
-                label: Text(
-                    _tomando
-                        ? 'Tomando...'
-                        : 'TOMAR PEDIDO',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  foregroundColor: Colors.white,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(12)),
+                      horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _tomando
+                        ? _kIndigo.withValues(alpha: 0.3)
+                        : _kIndigo,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: _tomando
+                      ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Row(children: [
+                          Icon(Icons.delivery_dining,
+                              color: Colors.white, size: 18),
+                          SizedBox(width: 8),
+                          Text('TOMAR PEDIDO',
+                              style: TextStyle(color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13)),
+                        ]),
                 ),
               ),
             ]),
@@ -400,15 +528,15 @@ class _CardDisponibleState extends State<_CardDisponible> {
 
   Future<void> _tomarPedido(BuildContext context) async {
     setState(() => _tomando = true);
-    final ok = await PedidoService().asignarRepartidor(
-        widget.pedido.id, widget.repartidorId);
+    final ok = await PedidoService()
+        .asignarRepartidor(widget.pedido.id, widget.repartidorId);
     if (!mounted) return;
     setState(() => _tomando = false);
     if (ok) {
       UbicacionService().iniciarTracking();
+      HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-            '✅ Pedido asignado — ¡a entregar! GPS activado 📍'),
+        content: Text('✅ Pedido asignado — GPS activado 📍'),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
       ));
@@ -420,16 +548,9 @@ class _CardDisponibleState extends State<_CardDisponible> {
       ));
     }
   }
-
-  String _tiempoTranscurrido(DateTime f) {
-    final diff = DateTime.now().difference(f);
-    if (diff.inMinutes < 1) return 'Ahora';
-    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
-    return 'Hace ${diff.inHours}h';
-  }
 }
 
-// ══════════════════ TAB 2: MIS ENTREGAS ACTIVAS ══════════════════════════════
+// ══════════════════════ TAB 2: EN CAMINO ═════════════════════════════════════
 class _TabMisEntregas extends StatelessWidget {
   final String repartidorId;
   const _TabMisEntregas({required this.repartidorId});
@@ -437,45 +558,42 @@ class _TabMisEntregas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<PedidoModel>>(
-      stream: PedidoService().obtenerPedidosDomicilio(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: Colors.indigo));
+      stream: PedidoService().obtenerPedidosDomicilio()
+          .map((list) => list
+              .where((p) => p.repartidorId == repartidorId)
+              .toList()),
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting &&
+            !snap.hasData) {
+          return const Center(child: CircularProgressIndicator(
+              color: _kIndigo));
         }
-        final todos = snap.data ?? [];
-        final misEntregas = todos
-            .where((p) =>
-                p.repartidorId == repartidorId &&
-                p.estado == 'En camino')
+        final activos = (snap.data ?? [])
+            .where((p) => p.estado == 'En camino')
             .toList();
 
-        if (misEntregas.isEmpty) {
-          return Center(
-            child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-              const Text('🛵', style: TextStyle(fontSize: 70)),
-              const SizedBox(height: 16),
-              const Text('Sin entregas activas',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white38)),
-              const SizedBox(height: 8),
-              const Text(
-                  'Toma un pedido de la pestaña "Disponibles"',
-                  style: TextStyle(color: Colors.white24),
-                  textAlign: TextAlign.center),
-            ]),
-          );
+        if (activos.isEmpty) {
+          return Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+            const Text('🛵', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 16),
+            const Text('Sin entregas activas',
+                style: TextStyle(color: Colors.white,
+                    fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text('Toma un pedido disponible para empezar',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontSize: 13)),
+          ]));
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: misEntregas.length,
+          padding: const EdgeInsets.all(14),
+          itemCount: activos.length,
           itemBuilder: (_, i) =>
-              _CardEnCamino(pedido: misEntregas[i]),
+              _CardEnCamino(pedido: activos[i]),
         );
       },
     );
@@ -493,37 +611,59 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
   final _codigoCtrl = TextEditingController();
   bool _verificando = false;
   bool _expandido   = true;
+  Timer? _timer;
+  Duration _elapsed = Duration.zero;
 
   @override
-  void dispose() {
-    _codigoCtrl.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _elapsed = DateTime.now().difference(widget.pedido.fecha);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() =>
+          _elapsed = DateTime.now().difference(widget.pedido.fecha));
+    });
+  }
+
+  @override
+  void dispose() { _timer?.cancel(); _codigoCtrl.dispose(); super.dispose(); }
+
+  String get _tiempoStr {
+    final m = _elapsed.inMinutes;
+    final s = _elapsed.inSeconds % 60;
+    return '${m.toString().padLeft(2,'0')}:${s.toString().padLeft(2,'0')}';
+  }
+
+  Color get _tiempoColor {
+    if (_elapsed.inMinutes >= 30) return Colors.red;
+    if (_elapsed.inMinutes >= 20) return Colors.orange;
+    return _kAzul;
   }
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.pedido;
+    final p   = widget.pedido;
+    final dir = p.direccionEntrega?['direccion'] ?? 'Sin dirección';
+    final ref = p.direccionEntrega?['referencia'] ?? '';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: _kCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: Colors.indigo.withValues(alpha: 0.6),
-            width: 1.5),
+        border: Border.all(color: _kIndigo.withValues(alpha: 0.5),
+            width: 2),
       ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-        // Header azul colapsable
+        // Header con timer en vivo
         GestureDetector(
           onTap: () =>
               setState(() => _expandido = !_expandido),
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 12),
+                horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.indigo.withValues(alpha: 0.12),
+              color: _kIndigo.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(14)),
             ),
@@ -532,483 +672,493 @@ class _CardEnCaminoState extends State<_CardEnCamino> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: Colors.indigo,
-                    borderRadius: BorderRadius.circular(20)),
+                  color: _kIndigo,
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 child: const Text('🛵 EN CAMINO',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12)),
+                    style: TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11)),
               ),
               const Spacer(),
-              Text('#${p.id.substring(0, 6).toUpperCase()}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white38)),
+              Icon(Icons.timer_outlined,
+                  size: 13, color: _tiempoColor),
+              const SizedBox(width: 4),
+              Text(_tiempoStr, style: TextStyle(
+                  color: _tiempoColor, fontWeight: FontWeight.bold,
+                  fontSize: 13, fontFamily: 'monospace')),
               const SizedBox(width: 8),
-              Icon(
-                  _expandido
-                      ? Icons.expand_less
-                      : Icons.expand_more,
-                  color: Colors.white38),
+              Icon(_expandido
+                  ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white24, size: 18),
             ]),
           ),
         ),
 
         if (_expandido)
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
               // Cliente
               Row(children: [
-                const Icon(Icons.person,
-                    size: 18, color: Colors.indigo),
+                const Icon(Icons.person_outline,
+                    size: 16, color: _kIndigo),
                 const SizedBox(width: 6),
-                Text(p.clienteNombre,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Colors.white)),
+                Expanded(child: Text(p.clienteNombre,
+                    style: const TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.w700, fontSize: 15))),
+                if (p.clienteTelefono != null)
+                  _BtnAccion(
+                    icon: Icons.call_outlined,
+                    label: 'Llamar',
+                    color: _kVerde,
+                    onTap: () => LauncherService.llamar(p.clienteTelefono!),
+                  ),
+                const SizedBox(width: 8),
+                _BtnAccion(
+                  icon: Icons.map_outlined,
+                  label: 'Mapa',
+                  color: _kAzul,
+                  onTap: () => LauncherService.abrirMaps(dir),
+                ),
               ]),
-              if (p.clienteTelefono != null) ...[
-                const SizedBox(height: 4),
-                Row(children: [
-                  const SizedBox(width: 24),
-                  const Icon(Icons.phone,
-                      size: 15, color: Colors.white38),
-                  const SizedBox(width: 5),
-                  Text(p.clienteTelefono!,
-                      style: const TextStyle(
-                          color: Colors.white38)),
-                ]),
-              ],
               const SizedBox(height: 10),
 
               // Dirección
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10)),
-                child: Row(children: [
-                  const Icon(Icons.location_on,
-                      color: Colors.red, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                    Text(
-                        p.direccionEntrega?['direccion'] ??
-                            '',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
-                    if ((p.direccionEntrega?['referencia'] ??
-                                '')
-                            .toString()
-                            .isNotEmpty)
-                      Text(
-                          p.direccionEntrega!['referencia']
-                              .toString(),
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white38)),
-                  ])),
-                ]),
-              ),
-              const SizedBox(height: 12),
-
-              Text('\$${p.total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green)),
-              const SizedBox(height: 16),
-
-              // Panel verificación
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1200),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.red.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: Colors.orange
-                          .withValues(alpha: 0.4)),
+                      color: Colors.red.withValues(alpha: 0.15)),
                 ),
                 child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  const Row(children: [
-                    Icon(Icons.lock,
-                        size: 16, color: Colors.orange),
-                    SizedBox(width: 6),
-                    Text('Verificar entrega',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Colors.white)),
-                  ]),
-                  const SizedBox(height: 6),
-                  const Text(
-                      'Ingresa el código de 6 dígitos del cliente:',
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white54)),
-                  const SizedBox(height: 10),
                   Row(children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _codigoCtrl,
-                        keyboardType:
-                            TextInputType.number,
-                        maxLength: 6,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 8,
-                            color: Colors.white),
-                        decoration: InputDecoration(
-                          counterText: '',
-                          hintText: '------',
-                          hintStyle: const TextStyle(
-                              color: Colors.white12,
-                              letterSpacing: 8),
-                          filled: true,
-                          fillColor:
-                              const Color(0xFF0F172A),
-                          border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                  color: Colors.orange
-                                      .withValues(
-                                          alpha: 0.4))),
-                          focusedBorder:
-                              OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                          10),
-                                  borderSide:
-                                      const BorderSide(
-                                          color:
-                                              Colors.orange,
-                                          width: 2)),
-                          contentPadding:
-                              const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      // Sin pasar context como parámetro
-                      onPressed: _verificando
-                          ? null
-                          : _verificar,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 18),
-                      ),
-                      child: _verificando
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child:
-                                  CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white))
-                          : const Text('OK',
-                              style: TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  fontSize: 16)),
-                    ),
+                    const Icon(Icons.location_on,
+                        size: 15, color: Colors.redAccent),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(dir,
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13))),
                   ]),
+                  if (ref.toString().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      const Icon(Icons.info_outline,
+                          size: 13, color: Colors.white24),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(ref.toString(),
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11))),
+                    ]),
+                  ],
                 ]),
               ),
+              const SizedBox(height: 10),
+
+              // Total + método
+              Row(children: [
+                Text('\$${p.total.toStringAsFixed(2)}',
+                    style: const TextStyle(color: _kVerde,
+                        fontWeight: FontWeight.w900, fontSize: 20)),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _kCard2,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(p.metodoPago.toUpperCase(),
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.4),
+                          fontSize: 10)),
+                ),
+              ]),
+              const SizedBox(height: 14),
+
+              // Campo código verificación
+              const Text('CÓDIGO DE ENTREGA',
+                  style: TextStyle(
+                      color: Colors.white38, fontSize: 10,
+                      fontWeight: FontWeight.w700, letterSpacing: 1)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: TextField(
+                  controller: _codigoCtrl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 20, fontWeight: FontWeight.bold,
+                      letterSpacing: 6),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: '_ _ _ _ _ _',
+                    hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        letterSpacing: 6, fontSize: 20),
+                    filled: true,
+                    fillColor: _kCard2,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color: _kIndigo.withValues(alpha: 0.6),
+                            width: 2)),
+                  ),
+                )),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _verificando ? null : () => _verificar(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _kVerde.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: _kVerde.withValues(alpha: 0.4)),
+                    ),
+                    child: _verificando
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(
+                                color: _kVerde, strokeWidth: 2))
+                        : const Icon(Icons.check_circle_outline,
+                            color: _kVerde, size: 24),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text('Pide el código al cliente para confirmar la entrega',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      fontSize: 11)),
             ]),
           ),
       ]),
     );
   }
 
-  // ── FIX: sin parámetro BuildContext
-  // ── FIX: if (!mounted) return  →  elimina warning async gap
-  Future<void> _verificar() async {
-    if (_codigoCtrl.text.length != 6) {
+  Future<void> _verificar(BuildContext context) async {
+    final codigo = _codigoCtrl.text.trim();
+    if (codigo.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('El código debe tener 6 dígitos'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating));
+        content: Text('⚠️ El código tiene 6 dígitos'),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+      ));
       return;
     }
-
     setState(() => _verificando = true);
-
-    final ok = await PedidoService().marcarEntregadoDomicilio(
-        widget.pedido.id, _codigoCtrl.text.trim());
-
-    if (!mounted) return; // guarda post-await
-    setState(() => _verificando = false);
-
-    if (ok) {
-      UbicacionService().detenerTracking();
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20)),
-          title: const Text('✅ ¡Entregado!',
-              textAlign: TextAlign.center,
-              style:
-                  TextStyle(fontWeight: FontWeight.bold)),
-          content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-            const Text('🎉',
-                style: TextStyle(fontSize: 50)),
-            const SizedBox(height: 10),
-            const Text(
-                'Pedido entregado correctamente.',
-                textAlign: TextAlign.center),
-            const SizedBox(height: 6),
-            Text(
-                '\$${widget.pedido.total.toStringAsFixed(2)} registrado.',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                    fontSize: 16),
-                textAlign: TextAlign.center),
-          ]),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  minimumSize:
-                      const Size(double.infinity, 44)),
-              child: const Text('¡Listo!',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  '❌ Código incorrecto. Verifica con el cliente.'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 3)));
+    try {
+      final ok = await PedidoService()
+          .marcarEntregadoDomicilio(widget.pedido.id, codigo);
+      if (!mounted) return;
+      if (ok) {
+        HapticFeedback.heavyImpact();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('🎉 ¡Entrega confirmada!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('❌ Código incorrecto'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _verificando = false);
     }
   }
 }
 
-// ══════════════════ TAB 3: MI DÍA ════════════════════════════════════════════
+// ── Botón de acción ───────────────────────────────────────────────────────────
+class _BtnAccion extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _BtnAccion({required this.icon, required this.label,
+      required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(color: color,
+            fontSize: 11, fontWeight: FontWeight.w700)),
+      ]),
+    ),
+  );
+}
+
+// ══════════════════════ TAB 3: MI DÍA ════════════════════════════════════════
 class _TabMiDia extends StatelessWidget {
   final String repartidorId;
   const _TabMiDia({required this.repartidorId});
 
   @override
   Widget build(BuildContext context) {
-    final hoy       = DateTime.now();
+    final hoy = DateTime.now();
     final inicioHoy = DateTime(hoy.year, hoy.month, hoy.day);
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('pedidos')
           .where('repartidorId', isEqualTo: repartidorId)
-          .where('estado', isEqualTo: 'Entregado')
-          .where('fecha',
-              isGreaterThanOrEqualTo:
-                  Timestamp.fromDate(inicioHoy))
+          .where('fecha', isGreaterThanOrEqualTo:
+              Timestamp.fromDate(inicioHoy))
           .orderBy('fecha', descending: true)
           .snapshots(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(
-                  color: Colors.indigo));
+      builder: (_, snap) {
+        if (snap.connectionState == ConnectionState.waiting &&
+            !snap.hasData) {
+          return const Center(child: CircularProgressIndicator(
+              color: _kIndigo));
         }
-        final docs = snap.data?.docs ?? [];
-        final pedidos = docs
+        final pedidos = (snap.data?.docs ?? [])
             .map((d) => PedidoModel.fromFirestore(
                 d.id, d.data() as Map<String, dynamic>))
             .toList();
 
-        final totalEntregas  = pedidos.length;
-        final totalGanancias =
-            pedidos.fold(0.0, (s, p) => s + p.total);
-        final promedio = totalEntregas > 0
-            ? totalGanancias / totalEntregas
-            : 0.0;
+        final entregados  = pedidos
+            .where((p) => p.estado == 'Entregado').toList();
+        final enCamino    = pedidos
+            .where((p) => p.estado == 'En camino').length;
+        final cancelados  = pedidos
+            .where((p) => p.estado == 'Cancelado').length;
+        final ventas      = entregados.fold(0.0, (s, p) => s + p.total);
+        final promedio    = entregados.isEmpty ? 0.0
+            : ventas / entregados.length;
+
+        // Gráfica por hora
+        final Map<int, int> porHora = {};
+        for (final p in entregados) {
+          porHora[p.fecha.hour] = (porHora[p.fecha.hour] ?? 0) + 1;
+        }
+        final maxH = porHora.values.isEmpty ? 1
+            : porHora.values.reduce((a, b) => a > b ? a : b);
 
         return ListView(
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.all(14),
           children: [
-            // Resumen del día
+            // ── Banner resumen ──────────────────────────────────────────
             Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF3730A3),
-                      Color(0xFF4F46E5)
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.indigo
-                          .withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6))
-                ],
+                color: _kIndigo.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                    color: _kIndigo.withValues(alpha: 0.3), width: 1.5),
               ),
               child: Column(children: [
-                const Row(children: [
-                  Text('🛵',
-                      style: TextStyle(fontSize: 28)),
-                  SizedBox(width: 10),
-                  Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                Row(children: [
+                  const Text('🛵', style: TextStyle(fontSize: 32)),
+                  const SizedBox(width: 14),
+                  Column(crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text('Mi resumen de hoy',
-                        style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13)),
-                    Text('Estadísticas del día',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16)),
+                    const Text('Mi resumen de hoy',
+                        style: TextStyle(color: Colors.white54,
+                            fontSize: 12)),
+                    Text('${hoy.hour.toString().padLeft(2,'0')}:${hoy.minute.toString().padLeft(2,'0')} hs',
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.w900, fontSize: 18)),
                   ]),
                 ]),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Row(children: [
-                  _DayStat('Entregas', '$totalEntregas',
-                      Icons.check_circle_outline),
-                  _DayStat(
-                      'Total',
-                      '\$${totalGanancias.toStringAsFixed(2)}',
-                      Icons.attach_money),
-                  _DayStat(
-                      'Promedio',
-                      '\$${promedio.toStringAsFixed(2)}',
-                      Icons.trending_up),
+                  _DayStat('✅', '${entregados.length}',
+                      'Entregas', _kVerde),
+                  _DayStat('🛵', '$enCamino',
+                      'En camino', _kIndigo),
+                  _DayStat('❌', '$cancelados',
+                      'Cancelados', Colors.red),
+                  _DayStat('💰', '\$${ventas.toStringAsFixed(0)}',
+                      'Total', _kAmb),
                 ]),
               ]),
             ),
+            const SizedBox(height: 14),
 
-            if (pedidos.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(40),
-                child: Column(children: [
-                  Text('📦',
-                      style: TextStyle(fontSize: 60)),
-                  SizedBox(height: 16),
-                  Text('Sin entregas hoy todavía',
-                      style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white38,
-                          fontWeight: FontWeight.bold)),
-                ]),
-              )
-            else ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(
-                    horizontal: 16),
-                child: Text('Historial de hoy',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white70)),
+            // ── Ticket promedio ────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: _kCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.06)),
               ),
+              child: Row(children: [
+                const Text('🎯', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Ticket promedio',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 13))),
+                Text('\$${promedio.toStringAsFixed(2)}',
+                    style: const TextStyle(color: _kVerde,
+                        fontWeight: FontWeight.w900, fontSize: 18)),
+              ]),
+            ),
+            const SizedBox(height: 14),
+
+            // ── Gráfica actividad ──────────────────────────────────────
+            if (porHora.isNotEmpty) ...[
+              Text('ACTIVIDAD POR HORA',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      fontSize: 11, fontWeight: FontWeight.w700,
+                      letterSpacing: 1)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.05)),
+                ),
+                child: SizedBox(
+                  height: 70,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(24, (h) {
+                      final cnt = porHora[h] ?? 0;
+                      final pct = maxH > 0 ? cnt / maxH : 0.0;
+                      final esActual = h == hoy.hour;
+                      if (cnt == 0 && !esActual) {
+                        final keys = porHora.keys.toList()..sort();
+                        if (keys.isEmpty) return const SizedBox.shrink();
+                        if (h < (keys.first - 1) || h > (keys.last + 1)) {
+                          return const SizedBox.shrink();
+                        }
+                      }
+                      return Expanded(child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                        child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                          if (cnt > 0)
+                            Text('$cnt', style: TextStyle(
+                                color: esActual
+                                    ? _kIndigo : Colors.white38,
+                                fontSize: 8)),
+                          const SizedBox(height: 2),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            height: (pct * 45).clamp(2.0, 45.0),
+                            decoration: BoxDecoration(
+                              color: esActual
+                                  ? _kIndigo
+                                  : _kIndigo.withValues(alpha: 0.4),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(3)),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text('$h', style: const TextStyle(
+                              color: Colors.white24, fontSize: 7)),
+                        ]),
+                      ));
+                    }).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // ── Historial del día ──────────────────────────────────────
+            if (pedidos.isNotEmpty) ...[
+              Text('HISTORIAL DE HOY',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      fontSize: 11, fontWeight: FontWeight.w700,
+                      letterSpacing: 1)),
               const SizedBox(height: 10),
               ...pedidos.map((p) {
-                final hora =
-                    '${p.fecha.hour.toString().padLeft(2, '0')}:'
-                    '${p.fecha.minute.toString().padLeft(2, '0')}';
+                final color = p.estado == 'Entregado' ? _kVerde
+                    : p.estado == 'En camino' ? _kIndigo
+                    : Colors.red;
+                final hora = '${p.fecha.hour.toString().padLeft(2,'0')}:'
+                    '${p.fecha.minute.toString().padLeft(2,'0')}';
                 return Container(
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 5),
-                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: _kCard,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: Colors.green
-                            .withValues(alpha: 0.3)),
+                        color: color.withValues(alpha: 0.2)),
                   ),
                   child: Row(children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF052E16),
-                          shape: BoxShape.circle),
-                      child: const Center(
-                          child: Text('✅',
-                              style: TextStyle(
-                                  fontSize: 20))),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                      Text(p.clienteNombre,
-                          style: const TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.white)),
-                      Text(
-                          p.direccionEntrega?[
-                                  'direccion'] ??
-                              '',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white38),
-                          maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis),
-                      Text(
-                          '$hora · ${p.items.length} productos',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.white24)),
-                    ])),
                     Text(
-                        '\$${p.total.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Colors.green)),
+                      p.estado == 'Entregado' ? '✅'
+                          : p.estado == 'En camino' ? '🛵' : '❌',
+                      style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(p.clienteNombre,
+                          style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.w600, fontSize: 13)),
+                      Text(p.direccionEntrega?['direccion'] ?? '',
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ])),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                      Text('\$${p.total.toStringAsFixed(2)}',
+                          style: TextStyle(color: color,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13)),
+                      Text(hora, style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 10)),
+                    ]),
                   ]),
                 );
               }),
-              const SizedBox(height: 24),
-            ],
+            ] else
+              Center(child: Padding(
+                padding: const EdgeInsets.all(30),
+                child: Column(children: [
+                  const Text('📊', style: TextStyle(fontSize: 40)),
+                  const SizedBox(height: 10),
+                  Text('Sin entregas hoy aún',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 13)),
+                ]),
+              )),
+
+            const SizedBox(height: 20),
           ],
         );
       },
@@ -1016,24 +1166,19 @@ class _TabMiDia extends StatelessWidget {
   }
 }
 
+// ── Stat del día ──────────────────────────────────────────────────────────────
 class _DayStat extends StatelessWidget {
-  final String label, value;
-  final IconData icon;
-  const _DayStat(this.label, this.value, this.icon);
-
+  final String emoji, valor, label;
+  final Color color;
+  const _DayStat(this.emoji, this.valor, this.label, this.color);
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Column(children: [
-          Icon(icon, color: Colors.white70, size: 22),
-          const SizedBox(height: 6),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white)),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: Colors.white60)),
-        ]),
-      );
+  Widget build(BuildContext context) => Expanded(child: Column(children: [
+    Text(emoji, style: const TextStyle(fontSize: 18)),
+    const SizedBox(height: 2),
+    Text(valor, style: TextStyle(color: color,
+        fontWeight: FontWeight.w900, fontSize: 16)),
+    Text(label, style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.3), fontSize: 9),
+        textAlign: TextAlign.center),
+  ]));
 }

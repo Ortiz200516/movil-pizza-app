@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../cliente/menu_page.dart';
 import '../cliente/mis_pedidos_page.dart';
@@ -8,8 +9,11 @@ import '../carrito/carrito_page.dart';
 import '../carrito/carrito_provider.dart';
 import '../cliente/fidelidad_page.dart';
 import '../cliente/home_screen.dart';
+import '../cliente/carrito_flotante_widget.dart';
+import '../cliente/busqueda_global_page.dart';
 import '../cliente/reservas_page.dart';
 import '../services/theme_provider.dart';
+import '../services/offline_service.dart';
 
 const _kNaranja  = Color(0xFFFF6B35);
 const _kNaranja2 = Color(0xFFFF6B00);
@@ -23,12 +27,14 @@ class HomeCliente extends StatefulWidget {
 
 class _HomeClienteState extends State<HomeCliente>
     with SingleTickerProviderStateMixin {
+  bool _sinConexion = false;
   int _idx = 0;
   late AnimationController _animCtrl;
 
   @override
   void initState() {
     super.initState();
+    _verificarConexion();
     _animCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 250));
     _animCtrl.forward();
@@ -38,6 +44,17 @@ class _HomeClienteState extends State<HomeCliente>
   void dispose() {
     _animCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _verificarConexion() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('_ping').limit(1).get()
+          .timeout(const Duration(seconds: 4));
+      if (mounted) setState(() => _sinConexion = false);
+    } catch (_) {
+      if (mounted) setState(() => _sinConexion = true);
+    }
   }
 
   void _cambiarTab(int i) {
@@ -100,6 +117,20 @@ class _HomeClienteState extends State<HomeCliente>
                           fontSize: 18),
                     ),
               actions: [
+                // Búsqueda global
+                IconButton(
+                  icon: const Icon(Icons.search_rounded,
+                      color: Colors.white54, size: 22),
+                  onPressed: () => Navigator.push(context,
+                      PageRouteBuilder(
+                        pageBuilder: (_, a, __) =>
+                            const BusquedaGlobalPage(),
+                        transitionsBuilder: (_, a, __, child) =>
+                            FadeTransition(opacity: a, child: child),
+                        transitionDuration:
+                            const Duration(milliseconds: 250),
+                      )),
+                ),
                 // Toggle tema
                 if (theme != null)
                   IconButton(
@@ -155,10 +186,21 @@ class _HomeClienteState extends State<HomeCliente>
           ? const Center(
               child: Text('Error',
                   style: TextStyle(color: Colors.white)))
-          : FadeTransition(
-              opacity: _animCtrl,
-              child: pages[_idx],
-            ),
+          : Column(children: [
+              // Banner sin conexión — aparece/desaparece automáticamente
+              BannerSinConexion(sinConexion: _sinConexion),
+              // Contenido principal
+              Expanded(
+                child: CarritoFlotante(
+                  tabActual: _idx,
+                  onIrAlCarrito: () => _cambiarTab(3),
+                  child: FadeTransition(
+                    opacity: _animCtrl,
+                    child: pages[_idx],
+                  ),
+                ),
+              ),
+            ]),
       bottomNavigationBar: _BottomNav(
         selectedIndex: _idx,
         carritoCant: carrito.cantidadTotal,

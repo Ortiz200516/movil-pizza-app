@@ -210,19 +210,32 @@ class _LoginPageState extends State<LoginPage>
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: Stack(children: [
-        // Fondo decorativo
-        Positioned(top: -80, right: -60,
-          child: Container(width: 280, height: 280,
+        // ── Fondo decorativo mejorado ─────────────────────────────
+        Positioned(top: -100, right: -80,
+          child: Container(width: 300, height: 300,
             decoration: BoxDecoration(shape: BoxShape.circle,
               color: const Color(0xFFFF6B00).withValues(alpha: 0.07)))),
-        Positioned(bottom: -100, left: -80,
-          child: Container(width: 320, height: 320,
+        Positioned(bottom: -120, left: -90,
+          child: Container(width: 340, height: 340,
             decoration: BoxDecoration(shape: BoxShape.circle,
-              color: const Color(0xFFFF6B00).withValues(alpha: 0.04)))),
-        Positioned(top: 200, left: 20,
-          child: Container(width: 80, height: 80,
+              color: const Color(0xFFFF6B00).withValues(alpha: 0.05)))),
+        Positioned(top: 180, left: 10,
+          child: Container(width: 60, height: 60,
             decoration: BoxDecoration(shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.015)))),
+              color: Colors.white.withValues(alpha: 0.02)))),
+        Positioned(top: 320, right: 24,
+          child: Container(width: 40, height: 40,
+            decoration: BoxDecoration(shape: BoxShape.circle,
+              color: const Color(0xFFFF6B00).withValues(alpha: 0.06)))),
+        // Líneas decorativas sutiles
+        Positioned(top: 0, left: 0, right: 0,
+          child: Container(height: 3,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                Colors.transparent,
+                const Color(0xFFFF6B00).withValues(alpha: 0.4),
+                Colors.transparent,
+              ])))),
 
         SafeArea(
           child: Center(
@@ -236,41 +249,93 @@ class _LoginPageState extends State<LoginPage>
                     key: _formKey,
                     child: Column(children: [
 
-                      // Logo
-                      Container(
-                        width: 96, height: 96,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFF6B00), Color(0xFFFF8C42)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                      // ── Logo con anillo triple ──────────────────────
+                      Stack(alignment: Alignment.center, children: [
+                        // Anillo exterior
+                        Container(
+                          width: 140, height: 140,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: const Color(0xFFFF6B00).withValues(alpha: 0.1),
+                                width: 1),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFF6B00).withValues(alpha: 0.4),
-                              blurRadius: 24, offset: const Offset(0, 8)),
-                          ],
                         ),
-                        child: const Center(
-                          child: Text('🍕', style: TextStyle(fontSize: 44)),
+                        // Anillo medio
+                        Container(
+                          width: 118, height: 118,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: const Color(0xFFFF6B00).withValues(alpha: 0.2),
+                                width: 1.5),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
+                        // Logo principal
+                        Container(
+                          width: 96, height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF1E293B),
+                            border: Border.all(
+                                color: const Color(0xFFFF6B00).withValues(alpha: 0.6),
+                                width: 2),
+                            boxShadow: [BoxShadow(
+                                color: const Color(0xFFFF6B00).withValues(alpha: 0.25),
+                                blurRadius: 28, spreadRadius: 4,
+                                offset: const Offset(0, 6))],
+                          ),
+                          child: const Center(
+                              child: Text('🍕', style: TextStyle(fontSize: 44))),
+                        ),
+                      ]),
+                      const SizedBox(height: 22),
 
-                      // Título
+                      // ── Nombre + slogan ──────────────────────────────
                       const Text('La Italiana',
                           style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1)),
-                      const SizedBox(height: 6),
-                      Text('Bienvenido de nuevo',
+                              color: Colors.white, fontSize: 30,
+                              fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6B00).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: const Color(0xFFFF6B00).withValues(alpha: 0.25)),
+                        ),
+                        child: const Text('Pizzería Artesanal · Guayaquil',
+                            style: TextStyle(
+                                color: Color(0xFFFF6B00),
+                                fontSize: 11, letterSpacing: 0.5,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Bienvenido de nuevo 👋',
                           style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: Colors.white.withValues(alpha: 0.4),
                               fontSize: 14)),
                       const SizedBox(height: 36),
+
+                      // ── Separador visual ──────────────────────────
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        child: Row(children: [
+                          Expanded(child: Divider(
+                              color: Colors.white.withValues(alpha: 0.07))),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('Inicia sesión',
+                                style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    fontSize: 11, letterSpacing: 0.5)),
+                          ),
+                          Expanded(child: Divider(
+                              color: Colors.white.withValues(alpha: 0.07))),
+                        ]),
+                      ),
 
                       // Campo Email
                       TextFormField(
@@ -367,31 +432,42 @@ class _LoginPageState extends State<LoginPage>
                       ]),
                       const SizedBox(height: 26),
 
-                      // Botón Ingresar
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
+                      // ── Botón Ingresar ────────────────────────────
+                      Container(
+                        width: double.infinity, height: 54,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          gradient: LinearGradient(colors: [
+                            const Color(0xFFFF6B00),
+                            const Color(0xFFFF8C42),
+                          ]),
+                          boxShadow: _cargando ? [] : [BoxShadow(
+                              color: const Color(0xFFFF6B00).withValues(alpha: 0.4),
+                              blurRadius: 16, offset: const Offset(0, 6))],
+                        ),
                         child: ElevatedButton(
                           onPressed: _cargando ? null : _login,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF6B00),
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor:
-                                const Color(0xFFFF6B00).withValues(alpha: 0.5),
-                            elevation: 0,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14)),
                           ),
                           child: _cargando
-                              ? const SizedBox(
-                                  width: 22, height: 22,
+                              ? const SizedBox(width: 22, height: 22,
                                   child: CircularProgressIndicator(
                                       color: Colors.white, strokeWidth: 2.5))
-                              : const Text('Ingresar',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5)),
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                Text('Ingresar',
+                                    style: TextStyle(fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.5)),
+                                SizedBox(width: 8),
+                                Icon(Icons.arrow_forward_rounded, size: 18),
+                              ]),
                         ),
                       ),
                       const SizedBox(height: 24),

@@ -63,7 +63,7 @@ class _RegisterPageState extends State<RegisterPage>
     if (_fuerzaPass <= 0.25) return 'Muy débil';
     if (_fuerzaPass <= 0.5)  return 'Débil';
     if (_fuerzaPass <= 0.75) return 'Buena';
-    return 'Fuerte 💪';
+    return 'Fuerte ðŸ’ª';
   }
 
   @override
@@ -78,20 +78,20 @@ class _RegisterPageState extends State<RegisterPage>
     if (!email.contains('@') || !email.contains('.')) return;
     setState(() { _verificandoEmail = true; _emailDisponible = null; });
     try {
-      // fetchSignInMethodsForEmail fue deprecado — usamos signInWithEmailAndPassword
+      // fetchSignInMethodsForEmail fue deprecado â€” usamos signInWithEmailAndPassword
       // con contraseña inválida para detectar si el usuario existe
       await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: '___invalid___');
     } on FirebaseAuthException catch (e) {
       if (mounted) {
         if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
-          // No existe → disponible
+          // No existe â†’ disponible
           setState(() { _emailDisponible = true; _verificandoEmail = false; });
         } else if (e.code == 'wrong-password' || e.code == 'INVALID_LOGIN_CREDENTIALS') {
-          // Existe pero contraseña incorrecta → ya registrado
+          // Existe pero contraseña incorrecta â†’ ya registrado
           setState(() { _emailDisponible = false; _verificandoEmail = false; });
         } else {
-          // Otro error (red, etc.) → no mostrar feedback
+          // Otro error (red, etc.) â†’ no mostrar feedback
           setState(() { _emailDisponible = null; _verificandoEmail = false; });
         }
       }
@@ -120,7 +120,7 @@ class _RegisterPageState extends State<RegisterPage>
         pais:     _pais,
       );
       if (mounted) {
-        _snack('✅ ¡Cuenta creada! Ya puedes iniciar sesión', Colors.green);
+        _snack('âœ… ¡Cuenta creada! Ya puedes iniciar sesión', Colors.green);
         Navigator.pop(context);
       }
     } catch (e) {
@@ -148,11 +148,11 @@ class _RegisterPageState extends State<RegisterPage>
         Positioned(top: -80, right: -60,
           child: Container(width: 240, height: 240,
             decoration: BoxDecoration(shape: BoxShape.circle,
-              color: const Color(0xFFFF6B00).withOpacity(0.06)))),
+              color: const Color(0xFFFF6B00).withValues(alpha: 0.06)))),
         Positioned(bottom: -60, left: -60,
           child: Container(width: 200, height: 200,
             decoration: BoxDecoration(shape: BoxShape.circle,
-              color: const Color(0xFFFF6B00).withOpacity(0.04)))),
+              color: const Color(0xFFFF6B00).withValues(alpha: 0.04)))),
 
         SafeArea(
           child: Column(children: [
@@ -173,14 +173,40 @@ class _RegisterPageState extends State<RegisterPage>
               ]),
             ),
 
-            // Indicador de pasos
+            // Indicador de pasos mejorado
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Row(children: [
-                _PasoIndicador(num: 1, label: 'Datos', activo: _paso >= 0, completado: _paso > 0),
-                Expanded(child: Container(height: 2,
-                    color: _paso > 0 ? const Color(0xFFFF6B00) : Colors.white12)),
-                _PasoIndicador(num: 2, label: 'Acceso', activo: _paso >= 1, completado: false),
+              child: Column(children: [
+                Row(children: [
+                  _PasoIndicador(num: 1, label: 'Datos personales',
+                      activo: _paso >= 0, completado: _paso > 0),
+                  Expanded(child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 400),
+                    height: 3,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      color: _paso > 0 ? const Color(0xFFFF6B00) : Colors.white12,
+                    ),
+                  )),
+                  _PasoIndicador(num: 2, label: 'Acceso',
+                      activo: _paso >= 1, completado: false),
+                ]),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: _paso == 0 ? 0.5 : 1.0,
+                    minHeight: 3,
+                    backgroundColor: Colors.white.withValues(alpha: 0.07),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFFFF6B00)),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Align(alignment: Alignment.centerRight,
+                  child: Text('Paso \${_paso + 1} de 2',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 11))),
               ]),
             ),
 
@@ -204,16 +230,16 @@ class _RegisterPageState extends State<RegisterPage>
     );
   }
 
-  // ── Paso 1: Datos personales ──────────────────────────────
+  // â”€â”€ Paso 1: Datos personales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildPaso1() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Center(child: Column(children: [
       Container(width: 68, height: 68,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: const Color(0xFF1E293B),
-          border: Border.all(color: const Color(0xFFFF6B00).withOpacity(0.3), width: 1.5),
+          border: Border.all(color: const Color(0xFFFF6B00).withValues(alpha: 0.3), width: 1.5),
         ),
-        child: const Center(child: Text('👤', style: TextStyle(fontSize: 32)))),
+        child: const Center(child: Text('ðŸ‘¤', style: TextStyle(fontSize: 32)))),
       const SizedBox(height: 10),
       const Text('Datos personales',
           style: TextStyle(color: Colors.white70, fontSize: 14)),
@@ -269,16 +295,16 @@ class _RegisterPageState extends State<RegisterPage>
     ),
   ]);
 
-  // ── Paso 2: Acceso ────────────────────────────────────────
+  // â”€â”€ Paso 2: Acceso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildPaso2() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Center(child: Column(children: [
       Container(width: 68, height: 68,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: const Color(0xFF1E293B),
-          border: Border.all(color: const Color(0xFFFF6B00).withOpacity(0.3), width: 1.5),
+          border: Border.all(color: const Color(0xFFFF6B00).withValues(alpha: 0.3), width: 1.5),
         ),
-        child: const Center(child: Text('🔐', style: TextStyle(fontSize: 32)))),
+        child: const Center(child: Text('ðŸ”', style: TextStyle(fontSize: 32)))),
       const SizedBox(height: 10),
       const Text('Configura tu acceso',
           style: TextStyle(color: Colors.white70, fontSize: 14)),
@@ -306,7 +332,7 @@ class _RegisterPageState extends State<RegisterPage>
         ocultar: !_verPass,
         sufijo: IconButton(
           icon: Icon(_verPass ? Icons.visibility_off : Icons.visibility,
-              color: Colors.grey.shade500, size: 20),
+              color: Colors.white38, size: 20),
           onPressed: () => setState(() => _verPass = !_verPass),
         ),
         validar: (v) {
@@ -339,7 +365,7 @@ class _RegisterPageState extends State<RegisterPage>
         ocultar: !_verConfirm,
         sufijo: IconButton(
           icon: Icon(_verConfirm ? Icons.visibility_off : Icons.visibility,
-              color: Colors.grey.shade500, size: 20),
+              color: Colors.white38, size: 20),
           onPressed: () => setState(() => _verConfirm = !_verConfirm),
         ),
         validar: (v) {
@@ -354,12 +380,12 @@ class _RegisterPageState extends State<RegisterPage>
     Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: const Text(
-        '🔒 Tu información está protegida y solo se usa para gestionar tus pedidos. No compartimos datos con terceros.',
+        'ðŸ”’ Tu información está protegida y solo se usa para gestionar tus pedidos. No compartimos datos con terceros.',
         style: TextStyle(color: Colors.white38, fontSize: 11, height: 1.5),
         textAlign: TextAlign.center,
       ),
@@ -407,7 +433,7 @@ class _RegisterPageState extends State<RegisterPage>
   ]);
 }
 
-// ── Indicador de paso ─────────────────────────────────────────
+// â”€â”€ Indicador de paso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _PasoIndicador extends StatelessWidget {
   final int num; final String label;
   final bool activo, completado;
@@ -438,7 +464,7 @@ class _PasoIndicador extends StatelessWidget {
   ]);
 }
 
-// ── Dropdown país ─────────────────────────────────────────────
+// â”€â”€ Dropdown país â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _DropdownPais extends StatelessWidget {
   final String valor;
   final ValueChanged<String?> onChanged;
@@ -449,7 +475,7 @@ class _DropdownPais extends StatelessWidget {
     decoration: BoxDecoration(
       color: const Color(0xFF1E293B),
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.06)),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
     ),
     child: DropdownButtonHideUnderline(
       child: DropdownButtonFormField<String>(
@@ -460,8 +486,8 @@ class _DropdownPais extends StatelessWidget {
         decoration: InputDecoration(
           border: InputBorder.none,
           labelText: 'País',
-          labelStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-          prefixIcon: Icon(Icons.flag_outlined, color: Colors.grey.shade600, size: 20),
+          labelStyle: TextStyle(color: Colors.white38, fontSize: 14),
+          prefixIcon: Icon(Icons.flag_outlined, color: Colors.white38, size: 20),
           contentPadding: EdgeInsets.zero,
         ),
         items: Paises.lista.map((p) => DropdownMenuItem<String>(
@@ -476,7 +502,7 @@ class _DropdownPais extends StatelessWidget {
   );
 }
 
-// ── Campo reutilizable ────────────────────────────────────────
+// â”€â”€ Campo reutilizable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _Campo extends StatelessWidget {
   final TextEditingController ctrl;
   final String label; final IconData icon;
@@ -492,14 +518,14 @@ class _Campo extends StatelessWidget {
     validator: validar,
     decoration: InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-      prefixIcon: Icon(icon, color: Colors.grey.shade600, size: 20),
+      labelStyle: TextStyle(color: Colors.white38, fontSize: 14),
+      prefixIcon: Icon(icon, color: Colors.white38, size: 20),
       suffixIcon: sufijo, filled: true,
       fillColor: const Color(0xFF1E293B),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.06))),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFFF6B00), width: 1.5)),
       errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
@@ -511,7 +537,7 @@ class _Campo extends StatelessWidget {
   );
 }
 
-// ── Campo con feedback de disponibilidad ─────────────────────
+// â”€â”€ Campo con feedback de disponibilidad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _CampoConFeedback extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
@@ -555,8 +581,8 @@ class _CampoConFeedback extends StatelessWidget {
       validator: validar,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-        prefixIcon: Icon(icon, color: Colors.grey.shade600, size: 20),
+        labelStyle: TextStyle(color: Colors.white38, fontSize: 14),
+        prefixIcon: Icon(icon, color: Colors.white38, size: 20),
         suffixIcon: trailing != null
             ? Padding(
                 padding: const EdgeInsets.all(14),
@@ -573,10 +599,10 @@ class _CampoConFeedback extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(
               color: disponible == false
-                  ? Colors.red.withOpacity(0.5)
+                  ? Colors.red.withValues(alpha: 0.5)
                   : disponible == true
-                      ? Colors.green.withOpacity(0.4)
-                      : Colors.white.withOpacity(0.06),
+                      ? Colors.green.withValues(alpha: 0.4)
+                      : Colors.white.withValues(alpha: 0.06),
             )),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),

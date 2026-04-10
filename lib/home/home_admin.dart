@@ -18,6 +18,7 @@ import '../admin/cupones_page.dart';
 import '../admin/info_local_admin_page.dart';
 import '../admin/cierre_caja_page.dart';
 import '../admin/reservas_admin_page.dart';
+import '../admin/reporte_pdf_page.dart';
 import '../services/fidelidad_service.dart';
 
 const _estadosActivos = ['Pendiente', 'Preparando', 'Listo', 'En camino'];
@@ -30,7 +31,7 @@ Color _colorEstado(String estado) {
     case 'En camino':  return Colors.indigo;
     case 'Entregado':  return Colors.green;
     case 'Cancelado':  return Colors.red;
-    default:           return Colors.grey;
+    default:           return Colors.white38;
   }
 }
 
@@ -66,7 +67,7 @@ class _HomeAdminState extends State<HomeAdmin> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 12,
+      length: 13,
       child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: const Color(0xFF111827),
@@ -125,6 +126,7 @@ class _HomeAdminState extends State<HomeAdmin> {
               Tab(icon: Icon(Icons.point_of_sale, size: 20), text: 'Caja'),
               Tab(icon: Icon(Icons.stars_rounded, size: 20), text: 'Fidelidad'),
               Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Reservas'),
+              Tab(icon: Icon(Icons.picture_as_pdf, size: 20), text: 'PDF'),
             ],
           ),
           actions: [
@@ -161,6 +163,7 @@ class _HomeAdminState extends State<HomeAdmin> {
             const CierreCajaPage(),
             const _FidelidadAdminTab(),
             const ReservasAdminPage(),
+            const ReportePdfPage(),
           ],
         ),
         floatingActionButton: Builder(

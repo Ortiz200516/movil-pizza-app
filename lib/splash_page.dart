@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,87 +21,106 @@ class SplashPage extends StatefulWidget {
 class _SplashPageState extends State<SplashPage>
     with TickerProviderStateMixin {
 
-  // Controladores de animación
-  late AnimationController _logoCtrl;
-  late AnimationController _textCtrl;
-  late AnimationController _barraCtrl;
-  late AnimationController _particleCtrl;
+  // ── Controladores ─────────────────────────────────────────────────────────
+  late AnimationController _ringCtrl;      // anillo exterior pulsante
+  late AnimationController _logoCtrl;      // logo entrada
+  late AnimationController _textCtrl;      // texto entrada
+  late AnimationController _barraCtrl;     // barra progreso
+  late AnimationController _rotCtrl;       // slice pizza girando
+  late AnimationController _particleCtrl; // partículas flotantes
 
+  late Animation<double> _ringScale;
+  late Animation<double> _ringOpacity;
   late Animation<double> _logoScale;
   late Animation<double> _logoOpacity;
   late Animation<double> _textOpacity;
   late Animation<Offset>  _textSlide;
   late Animation<double> _barraWidth;
+  late Animation<double> _rotAngle;
   late Animation<double> _particleOpacity;
 
   @override
   void initState() {
     super.initState();
 
-    // Logo: escala + opacidad
+    // Anillo exterior — aparece primero, pulsa
+    _ringCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200));
+    _ringScale = Tween<double>(begin: 0.6, end: 1.15).animate(
+        CurvedAnimation(parent: _ringCtrl, curve: Curves.easeOut));
+    _ringOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _ringCtrl,
+            curve: const Interval(0.0, 0.4, curve: Curves.easeOut)));
+
+    // Logo pizza — entrada elástica
     _logoCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900));
-    _logoScale = Tween<double>(begin: 0.3, end: 1.0).animate(
+        vsync: this, duration: const Duration(milliseconds: 800));
+    _logoScale = Tween<double>(begin: 0.2, end: 1.0).animate(
         CurvedAnimation(parent: _logoCtrl, curve: Curves.elasticOut));
     _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _logoCtrl,
-            curve: const Interval(0.0, 0.5, curve: Curves.easeOut)));
+            curve: const Interval(0.0, 0.4, curve: Curves.easeOut)));
 
-    // Texto: slide + fade
+    // Texto — slide desde abajo
     _textCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 600));
+        vsync: this, duration: const Duration(milliseconds: 500));
     _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut));
     _textSlide = Tween<Offset>(
-            begin: const Offset(0, 0.3), end: Offset.zero)
+            begin: const Offset(0, 0.4), end: Offset.zero)
         .animate(CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut));
 
-    // Barra de progreso
+    // Barra de carga
     _barraCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1800));
+        vsync: this, duration: const Duration(milliseconds: 1600));
     _barraWidth = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _barraCtrl, curve: Curves.easeInOut));
 
-    // Partículas flotantes
+    // Rotación sutil del logo
+    _rotCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 3000))
+      ..repeat();
+    _rotAngle = Tween<double>(begin: -0.05, end: 0.05).animate(
+        CurvedAnimation(parent: _rotCtrl, curve: Curves.easeInOut))
+      ..addListener(() {
+        if (_rotCtrl.value > 0.5) _rotCtrl.reverse();
+      });
+
+    // Partículas decorativas
     _particleCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000))
+        vsync: this, duration: const Duration(milliseconds: 1800))
       ..repeat(reverse: true);
-    _particleOpacity = Tween<double>(begin: 0.3, end: 0.8).animate(
+    _particleOpacity = Tween<double>(begin: 0.2, end: 0.6).animate(
         CurvedAnimation(parent: _particleCtrl, curve: Curves.easeInOut));
 
     _iniciarSecuencia();
   }
 
   Future<void> _iniciarSecuencia() async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    await Future.delayed(const Duration(milliseconds: 80));
+    _ringCtrl.forward();
+    await Future.delayed(const Duration(milliseconds: 250));
     _logoCtrl.forward();
-
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 350));
     _textCtrl.forward();
-
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 150));
     _barraCtrl.forward();
-
-    await Future.delayed(const Duration(milliseconds: 2200));
+    await Future.delayed(const Duration(milliseconds: 2000));
     await _navegar();
   }
 
   Future<void> _navegar() async {
     if (!mounted) return;
-
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       final prefs = await SharedPreferences.getInstance();
       final visto = prefs.getBool('onboarding_visto') ?? false;
       _ir(visto ? const LoginPage() : const OnboardingPage());
       return;
     }
-
     try {
       final rol = await AuthService().obtenerRol(user.uid);
       await NotificacionService().guardarToken(user.uid);
-
       Widget dest;
       switch (rol.toLowerCase()) {
         case 'admin':      dest = const HomeAdmin();      break;
@@ -110,30 +130,27 @@ class _SplashPageState extends State<SplashPage>
         default:           dest = const HomeCliente();
       }
       _ir(dest);
-    } catch (_) {
-      _ir(const LoginPage());
-    }
+    } catch (_) { _ir(const LoginPage()); }
   }
 
-  void _ir(Widget page) {
+  void _ir(Widget dest) {
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
-        transitionDuration: const Duration(milliseconds: 700),
-        transitionsBuilder: (_, anim, __, child) => FadeTransition(
-            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-            child: child),
-      ),
-    );
+    Navigator.pushReplacement(context,
+        PageRouteBuilder(
+          pageBuilder: (_, a, __) => dest,
+          transitionsBuilder: (_, a, __, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ));
   }
 
   @override
   void dispose() {
+    _ringCtrl.dispose();
     _logoCtrl.dispose();
     _textCtrl.dispose();
     _barraCtrl.dispose();
+    _rotCtrl.dispose();
     _particleCtrl.dispose();
     super.dispose();
   }
@@ -143,170 +160,208 @@ class _SplashPageState extends State<SplashPage>
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF0A0F1E),
       body: Stack(children: [
 
-        // ── Fondo con círculos decorativos ───────────────────────────────────
-        Positioned(top: -80, right: -60,
-          child: _Circulo(size: 260,
-              color: const Color(0xFFFF6B00).withValues(alpha: 0.07))),
-        Positioned(bottom: -100, left: -80,
-          child: _Circulo(size: 320,
-              color: const Color(0xFFFF6B00).withValues(alpha: 0.05))),
-        Positioned(top: size.height * 0.3, left: -40,
-          child: _Circulo(size: 120,
-              color: const Color(0xFFFF6B35).withValues(alpha: 0.04))),
+        // ── Fondo degradado radial ─────────────────────────────────────
+        Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -0.3),
+              radius: 1.4,
+              colors: [Color(0xFF1A0F00), Color(0xFF0A0F1E)],
+            ),
+          ),
+        ),
 
-        // ── Partículas flotantes ─────────────────────────────────────────────
+        // ── Partículas flotantes (emojis decorativos) ─────────────────
         AnimatedBuilder(
-          animation: _particleCtrl,
+          animation: _particleOpacity,
           builder: (_, __) => Stack(children: [
-            _Particula(x: size.width * 0.1, y: size.height * 0.2,
-                opacity: _particleOpacity.value * 0.5, emoji: '🍕', size: 18),
-            _Particula(x: size.width * 0.85, y: size.height * 0.15,
-                opacity: _particleOpacity.value * 0.4, emoji: '🧀', size: 16),
-            _Particula(x: size.width * 0.75, y: size.height * 0.7,
-                opacity: _particleOpacity.value * 0.5, emoji: '🫙', size: 14),
-            _Particula(x: size.width * 0.15, y: size.height * 0.75,
-                opacity: _particleOpacity.value * 0.3, emoji: '🌿', size: 16),
+            _Particula('🍕', 0.08, 0.18, 22, _particleOpacity.value),
+            _Particula('🧀', 0.82, 0.12, 16, _particleOpacity.value * 0.7),
+            _Particula('🌿', 0.75, 0.72, 14, _particleOpacity.value * 0.5),
+            _Particula('🍅', 0.05, 0.68, 16, _particleOpacity.value * 0.6),
+            _Particula('🧄', 0.88, 0.42, 14, _particleOpacity.value * 0.4),
+            _Particula('⭐', 0.15, 0.52, 12, _particleOpacity.value * 0.5),
           ]),
         ),
 
-        // ── Contenido central ────────────────────────────────────────────────
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+        // ── Contenido central ──────────────────────────────────────────
+        Center(child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
 
-              // Logo animado
-              AnimatedBuilder(
-                animation: _logoCtrl,
-                builder: (_, child) => Transform.scale(
-                  scale: _logoScale.value,
-                  child: Opacity(opacity: _logoOpacity.value, child: child),
+            // Anillo exterior animado
+            AnimatedBuilder(
+              animation: _ringCtrl,
+              builder: (_, child) => Transform.scale(
+                scale: _ringScale.value,
+                child: Opacity(opacity: _ringOpacity.value, child: child),
+              ),
+              child: Container(
+                width: 160, height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: const Color(0xFFFF6B35).withValues(alpha: 0.25),
+                      width: 1.5),
                 ),
                 child: Container(
-                  width: 110, height: 110,
+                  margin: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B00), Color(0xFFFF8C42)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6B00).withValues(alpha: 0.45),
-                        blurRadius: 40, offset: const Offset(0, 10)),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Text('🍕', style: TextStyle(fontSize: 52)),
+                    border: Border.all(
+                        color: const Color(0xFFFF6B35).withValues(alpha: 0.12),
+                        width: 1),
                   ),
                 ),
               ),
+            ),
 
-              const SizedBox(height: 28),
-
-              // Nombre y tagline
-              SlideTransition(
-                position: _textSlide,
-                child: FadeTransition(
-                  opacity: _textOpacity,
-                  child: Column(children: [
-                    const Text('La Italiana',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5)),
-                    const SizedBox(height: 8),
-                    Text('Auténtica pizza italiana',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            fontSize: 14,
-                            letterSpacing: 1)),
-                  ]),
+            // Logo pizza (sobre el anillo)
+            AnimatedBuilder(
+              animation: Listenable.merge([_logoCtrl, _rotCtrl]),
+              builder: (_, child) => Transform.scale(
+                scale: _logoScale.value,
+                child: Opacity(
+                  opacity: _logoOpacity.value,
+                  child: Transform.rotate(
+                    angle: sin(_rotCtrl.value * pi * 2) * 0.04,
+                    child: child,
+                  ),
                 ),
               ),
-
-              const SizedBox(height: 60),
-
-              // Barra de progreso
-              FadeTransition(
-                opacity: _textOpacity,
-                child: SizedBox(
-                  width: 160,
-                  child: Column(children: [
-                    AnimatedBuilder(
-                      animation: _barraCtrl,
-                      builder: (_, __) => ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          value: _barraWidth.value,
-                          backgroundColor:
-                              Colors.white.withValues(alpha: 0.08),
-                          valueColor: const AlwaysStoppedAnimation(
-                              Color(0xFFFF6B35)),
-                          minHeight: 3,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text('Cargando...',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            fontSize: 11,
-                            letterSpacing: 0.5)),
-                  ]),
+              child: Container(
+                width: 120, height: 120,
+                margin: const EdgeInsets.only(bottom: 140),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF1E293B),
+                  border: Border.all(
+                      color: const Color(0xFFFF6B35).withValues(alpha: 0.5),
+                      width: 2.5),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFFFF6B35).withValues(alpha: 0.2),
+                        blurRadius: 30, spreadRadius: 5),
+                  ],
+                ),
+                child: const Center(
+                  child: Text('🍕', style: TextStyle(fontSize: 56)),
                 ),
               ),
-            ],
+            ),
+          ],
+        )),
+
+        // ── Logo y texto posicionado en centro ────────────────────────
+        Positioned(
+          top: size.height * 0.42,
+          left: 0, right: 0,
+          child: AnimatedBuilder(
+            animation: _logoCtrl,
+            builder: (_, child) => Transform.scale(
+              scale: _logoScale.value,
+              child: Opacity(opacity: _logoOpacity.value, child: child),
+            ),
+            child: const Column(children: [
+              Text('🍕', style: TextStyle(fontSize: 64)),
+            ]),
           ),
         ),
 
-        // ── Versión en el footer ─────────────────────────────────────────────
+        // ── Texto nombre + slogan ─────────────────────────────────────
         Positioned(
-          bottom: 32, left: 0, right: 0,
-          child: FadeTransition(
-            opacity: _textOpacity,
-            child: Text('v1.0.0',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    fontSize: 11)),
+          top: size.height * 0.56,
+          left: 0, right: 0,
+          child: AnimatedBuilder(
+            animation: _textCtrl,
+            builder: (_, child) => FadeTransition(
+              opacity: _textOpacity,
+              child: SlideTransition(position: _textSlide, child: child),
+            ),
+            child: Column(children: [
+              const Text('LA ITALIANA',
+                  style: TextStyle(
+                      color: Color(0xFFFF6B35),
+                      fontSize: 32, fontWeight: FontWeight.w900,
+                      letterSpacing: 6)),
+              const SizedBox(height: 6),
+              Text('Pizzería Artesanal',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.45),
+                      fontSize: 14, letterSpacing: 2,
+                      fontWeight: FontWeight.w300)),
+            ]),
           ),
+        ),
+
+        // ── Barra de progreso ─────────────────────────────────────────
+        Positioned(
+          bottom: size.height * 0.12,
+          left: size.width * 0.2,
+          right: size.width * 0.2,
+          child: Column(children: [
+            AnimatedBuilder(
+              animation: _barraWidth,
+              builder: (_, __) => ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _barraWidth.value,
+                  minHeight: 3,
+                  backgroundColor:
+                      Colors.white.withValues(alpha: 0.08),
+                  valueColor: const AlwaysStoppedAnimation(
+                      Color(0xFFFF6B35)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            AnimatedBuilder(
+              animation: _barraWidth,
+              builder: (_, __) => Text(
+                _barraWidth.value < 0.3 ? 'Iniciando...'
+                    : _barraWidth.value < 0.7 ? 'Cargando tu experiencia...'
+                    : 'Bienvenido 🍕',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontSize: 11, letterSpacing: 0.5),
+              ),
+            ),
+          ]),
+        ),
+
+        // ── Versión ───────────────────────────────────────────────────
+        Positioned(
+          bottom: 28, left: 0, right: 0,
+          child: Text('v1.0.0',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  fontSize: 11)),
         ),
       ]),
     );
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-class _Circulo extends StatelessWidget {
-  final double size;
-  final Color color;
-  const _Circulo({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) => Container(
-      width: size, height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color));
-}
-
+// ── Widget partícula ──────────────────────────────────────────────────────────
 class _Particula extends StatelessWidget {
-  final double x, y, opacity, size;
   final String emoji;
-  const _Particula({
-    required this.x, required this.y,
-    required this.opacity, required this.emoji, required this.size});
+  final double x, y, size, opacity;
+  const _Particula(this.emoji, this.x, this.y, this.size, this.opacity);
 
   @override
-  Widget build(BuildContext context) => Positioned(
-    left: x, top: y,
-    child: Opacity(
-      opacity: opacity.clamp(0.0, 1.0),
-      child: Text(emoji, style: TextStyle(fontSize: size)),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final h = MediaQuery.of(context).size.height;
+    return Positioned(
+      left: w * x, top: h * y,
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0),
+        child: Text(emoji, style: TextStyle(fontSize: size)),
+      ),
+    );
+  }
 }

@@ -1,122 +1,176 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const { initializeApp }     = require("firebase-admin/app");
-const { getFirestore }      = require("firebase-admin/firestore");
-const { getMessaging }      = require("firebase-admin/messaging");
+const functions = require('firebase-functions');
+const admin     = require('firebase-admin');
+admin.initializeApp();
+const db  = admin.firestore();
+const fcm = admin.messaging();
 
-initializeApp();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cloud Function: enviarNotificacionPush
-// Se dispara cuando se crea un documento en /notificaciones
-// ─────────────────────────────────────────────────────────────────────────────
-exports.enviarNotificacionPush = onDocumentCreated(
-  "notificaciones/{docId}",
-  async (event) => {
-    const data = event.data.data();
-    const ref  = event.data.ref;
-
-    const titulo   = data.titulo   || "";
-    const cuerpo   = data.cuerpo   || "";
-    const tipo     = data.tipo     || "info";
-    const pedidoId = data.pedidoId || null;
-    const uid      = data.uid      || null;
-    const rol      = data.rol      || null;
-
-    if (!titulo) return;
-
-    const db  = getFirestore();
-    const fcm = getMessaging();
-    const tokens = [];
-
-    // ── Recopilar tokens ────────────────────────────────────────────────────
-    if (uid) {
-      // Notificación para un usuario específico
-      const userDoc = await db.collection("users").doc(uid).get();
-      const token   = userDoc.data()?.fcmToken;
-      if (token) tokens.push(token);
-
-    } else if (rol) {
-      // Notificación para todos los usuarios de un rol
-      const snap = await db.collection("users")
-        .where("rol", "==", rol)
-        .where("disponible", "==", true) // solo los activos
-        .get();
-      snap.forEach((doc) => {
-        const token = doc.data().fcmToken;
-        if (token) tokens.push(token);
-      });
-    }
-
-    if (tokens.length === 0) {
-      await ref.update({ enviada: true, error: "sin_tokens" });
-      return;
-    }
-
-    // ── Payload FCM ──────────────────────────────────────────────────────────
-    const notification = { title: titulo, body: cuerpo };
-    const androidConfig = {
+// ── Helper: enviar push a un usuario ─────────────────────────────────────────
+async function pushUsuario(uid, titulo, cuerpo, data = {}) {
+  const snap = await db.collection('users').doc(uid).get();
+  const token = snap.data()?.fcmToken;
+  if (!token) return;
+  return fcm.send({
+    token,
+    notification: { title: titulo, body: cuerpo },
+    android: {
       notification: {
-        channelId: "la_italiana_channel",
-        color: "#FF6B00",
-        sound: "default",
-        priority: "high",
+        color: '#FF6B35',
+        icon: 'ic_launcher',
+        channelId: 'la_italiana_channel',
+        priority: 'high',
       },
-      priority: "high",
-    };
-    const dataPayload = {
-      tipo,
-      ...(pedidoId && { pedidoId }),
-      titulo,
-      cuerpo,
-    };
+    },
+    data: { pedidoId: data.pedidoId ?? '', tipo: data.tipo ?? 'pedido' },
+  }).catch(() => null);
+}
 
-    // ── Enviar (multicast si hay varios tokens) ──────────────────────────────
-    let enviados = 0;
-    let errores  = 0;
+// ── Helper: enviar push a todos los usuarios con un rol ───────────────────────
+async function pushRol(rol, titulo, cuerpo, data = {}) {
+  const snap = await db.collection('users')
+    .where('rol', '==', rol).get();
+  const tokens = snap.docs
+    .map(d => d.data().fcmToken).filter(Boolean);
+  if (!tokens.length) return;
+  const msgs = tokens.map(token => ({
+    token,
+    notification: { title: titulo, body: cuerpo },
+    android: {
+      notification: {
+        color: '#FF6B35',
+        icon: 'ic_launcher',
+        channelId: 'la_italiana_channel',
+        priority: 'high',
+      },
+    },
+    data: { pedidoId: data.pedidoId ?? '', tipo: data.tipo ?? 'pedido' },
+  }));
+  return fcm.sendEach(msgs).catch(() => null);
+}
 
-    if (tokens.length === 1) {
-      try {
-        await fcm.send({
-          token: tokens[0],
-          notification,
-          android: androidConfig,
-          data: dataPayload,
-        });
-        enviados = 1;
-      } catch (e) {
-        errores = 1;
-        console.error("Error enviando push:", e);
-      }
-    } else {
-      // multicast
-      const result = await fcm.sendEachForMulticast({
-        tokens,
-        notification,
-        android: androidConfig,
-        data: dataPayload,
-      });
-      enviados = result.successCount;
-      errores  = result.failureCount;
+// ══════════════════════════════════════════════════════════════════════════════
+// TRIGGER: onWrite en pedidos — notifica según el cambio de estado
+// ══════════════════════════════════════════════════════════════════════════════
+exports.onPedidoCambia = functions
+  .region('us-central1')
+  .firestore.document('pedidos/{pedidoId}')
+  .onWrite(async (change, ctx) => {
+    const antes  = change.before.data();
+    const ahora  = change.after.data();
+    if (!ahora) return;                       // borrado — ignorar
 
-      // Limpiar tokens inválidos
-      result.responses.forEach(async (resp, i) => {
-        if (!resp.success && resp.error?.code === "messaging/registration-token-not-registered") {
-          // Token expirado — borrarlo de Firestore
-          const snap2 = await db.collection("users")
-            .where("fcmToken", "==", tokens[i]).get();
-          snap2.forEach((doc) => doc.ref.update({ fcmToken: null }));
-        }
-      });
+    const pedidoId   = ctx.params.pedidoId;
+    const estadoAntes = antes?.estado ?? '';
+    const estadoAhora = ahora.estado  ?? '';
+    const clienteId   = ahora.clienteId ?? ahora.userId ?? '';
+    const nombre      = ahora.clienteNombre ?? 'Cliente';
+    const items       = (ahora.items ?? []).length;
+    const total       = (ahora.total ?? 0).toFixed(2);
+    const mesa        = ahora.numeroMesa;
+    const tipo        = ahora.tipoPedido ?? 'domicilio';
+    const data        = { pedidoId };
+
+    if (estadoAntes === estadoAhora) return;  // sin cambio de estado
+
+    // ── Notificar AL CLIENTE según estado ─────────────────────────────────
+    const msgCliente = {
+      'Pendiente':  { t: '⏳ Pedido recibido',          b: `¡Hola ${nombre}! Tu pedido de ${items} item(s) fue recibido.` },
+      'Preparando': { t: '👨‍🍳 Ya estamos cocinando',      b: 'Tu pedido está en preparación. ¡Pronto listo!' },
+      'Listo':      { t: '✅ ¡Tu pedido está listo!',    b: tipo === 'mesa' ? `Mesa ${mesa} — el mesero ya viene.` : 'Listo para retirar o en camino.' },
+      'En camino':  { t: '🛵 Tu pedido va en camino',    b: `Tu repartidor está en camino con tu pedido.` },
+      'Entregado':  { t: '🎉 ¡Pedido entregado!',        b: `Tu pedido de $${total} fue entregado. ¡Buen provecho!` },
+      'Cancelado':  { t: '❌ Pedido cancelado',           b: `Tu pedido fue cancelado. Contáctanos si necesitas ayuda.` },
+    }[estadoAhora];
+
+    if (msgCliente && clienteId) {
+      await pushUsuario(clienteId, msgCliente.t, msgCliente.b, data);
     }
 
-    // ── Marcar como enviada ──────────────────────────────────────────────────
-    await ref.update({
-      enviada: true,
-      enviadoEn: new Date().toISOString(),
-      tokensEnviados: enviados,
-      tokensError: errores,
-    });
+    // ── Notificar AL COCINERO cuando llega pedido nuevo ───────────────────
+    if (estadoAhora === 'Pendiente') {
+      const tipoLabel = tipo === 'mesa' ? `Mesa ${mesa}` : 'Domicilio';
+      await pushRol('cocinero',
+        `🍕 Nueva orden — ${tipoLabel}`,
+        `${items} producto(s) · $${total}`,
+        data);
+    }
 
-    console.log(`Push enviado: ${titulo} → ${enviados} dispositivos`);
-  }
-);
+    // ── Notificar AL REPARTIDOR cuando pedido está Listo ─────────────────
+    if (estadoAhora === 'Listo' && tipo === 'domicilio') {
+      await pushRol('repartidor',
+        '📦 Pedido listo para entregar',
+        `${items} item(s) · $${total} — disponible para tomar`,
+        data);
+    }
+
+    // ── Notificar AL ADMIN si hay cancelación ─────────────────────────────
+    if (estadoAhora === 'Cancelado') {
+      await pushRol('admin',
+        '⚠️ Pedido cancelado',
+        `${nombre} canceló su pedido de $${total}`,
+        data);
+    }
+  });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRIGGER: onWrite en reservas — notifica cambios
+// ══════════════════════════════════════════════════════════════════════════════
+exports.onReservaCambia = functions
+  .region('us-central1')
+  .firestore.document('reservas/{reservaId}')
+  .onWrite(async (change, ctx) => {
+    const antes  = change.before.data();
+    const ahora  = change.after.data();
+    if (!ahora) return;
+
+    const estadoAntes = antes?.estado ?? '';
+    const estadoAhora = ahora.estado  ?? '';
+    const clienteId   = ahora.clienteId ?? '';
+    const mesa        = ahora.numeroMesa ?? '?';
+    const fecha       = ahora.fecha ?? '';
+    const hora        = ahora.hora  ?? '';
+
+    if (estadoAntes === estadoAhora) return;
+
+    const msgCliente = {
+      'confirmada': { t: '✅ Reserva confirmada', b: `Mesa ${mesa} para el ${fecha} a las ${hora}. ¡Te esperamos!` },
+      'rechazada':  { t: '❌ Reserva no disponible', b: `Lo sentimos, tu reserva del ${fecha} no pudo confirmarse.` },
+    }[estadoAhora];
+
+    if (msgCliente && clienteId) {
+      await pushUsuario(clienteId, msgCliente.t, msgCliente.b, {});
+    }
+
+    // Notificar al admin cuando llega reserva nueva
+    if (estadoAhora === 'pendiente') {
+      await pushRol('admin',
+        '📅 Nueva reserva',
+        `Mesa ${mesa} — ${fecha} ${hora}`,
+        {});
+    }
+  });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRIGGER: nuevo usuario registrado — bienvenida
+// ══════════════════════════════════════════════════════════════════════════════
+exports.onUsuarioNuevo = functions
+  .region('us-central1')
+  .auth.user().onCreate(async (user) => {
+    // Esperar que guardarToken guarde el token (pequeño delay)
+    await new Promise(r => setTimeout(r, 5000));
+    const snap = await db.collection('users').doc(user.uid).get();
+    const token = snap.data()?.fcmToken;
+    if (!token) return;
+    return fcm.send({
+      token,
+      notification: {
+        title: '🍕 ¡Bienvenido a La Italiana!',
+        body: 'Explora nuestro menú y haz tu primer pedido. ¡Tenemos algo especial para ti!'
+      },
+      android: {
+        notification: {
+          color: '#FF6B35', icon: 'ic_launcher',
+          channelId: 'la_italiana_channel',
+        },
+      },
+    }).catch(() => null);
+  });

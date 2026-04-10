@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../cliente/selector_direccion_page.dart';
 import 'carrito_provider.dart';
 import '../pedidos/pedidos_service.dart';
 import '../services/fidelidad_service.dart';
@@ -31,6 +32,9 @@ class _CarritoPageState extends State<CarritoPage>
   // ── Campos domicilio ──────────────────────────────────────────────────────
   final _dirCtrl       = TextEditingController();
   final _refCtrl       = TextEditingController();
+  double? _dirLat;       // coordenadas del pin en el mapa
+  double? _dirLng;
+  String? _dirNombre;    // "Casa", "Oficina", etc.
   // ── Cupon ─────────────────────────────────────────────────────────────────
   final _cuponCtrl     = TextEditingController();
   double _descuento    = 0.0;
@@ -151,8 +155,11 @@ class _CarritoPageState extends State<CarritoPage>
         numeroMesa:       _tipo == 'mesa' ? _mesaSel : null,
         direccionEntrega: _tipo == 'domicilio'
             ? {
-                'direccion': _dirCtrl.text.trim(),
+                'direccion':  _dirCtrl.text.trim(),
                 'referencia': _refCtrl.text.trim(),
+                if (_dirLat != null) 'lat': _dirLat,
+                if (_dirLng != null) 'lng': _dirLng,
+                if (_dirNombre != null) 'nombre': _dirNombre,
                 ...datosPago,
               } : datosPago,
         metodoPago: _metodoPago,
@@ -214,6 +221,7 @@ class _CarritoPageState extends State<CarritoPage>
           - _descuento - _descuentoPuntos).clamp(0.0, double.infinity),
       onNuevo: () => setState(() {
         _exito = false; _tipo = 'mesa'; _mesaSel = null;
+              _dirLat = null; _dirLng = null; _dirNombre = null;
         _descuento = 0; _cuponOk = null; _codVerif = null;
         _bancoSel = null; _metodoPago = 'efectivo';
         _puntosCanjeados = 0; _descuentoPuntos = 0;
@@ -280,11 +288,141 @@ class _CarritoPageState extends State<CarritoPage>
                 ),
 
               if (_tipo == 'domicilio') ...[
-                _Campo(_dirCtrl, 'Dirección de entrega *',
-                    Icons.location_on_outlined),
-                const SizedBox(height: 10),
-                _Campo(_refCtrl, 'Referencia (ej: casa azul)',
-                    Icons.info_outline),
+                // ── Botón abrir mapa ─────────────────────────────────────
+                GestureDetector(
+                  onTap: () async {
+                    final result = await Navigator.push<Map<String, dynamic>>(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (_, __, ___) => SelectorDireccionPage(
+                          direccionInicial: _dirCtrl.text.isNotEmpty ? {
+                            'direccion':  _dirCtrl.text,
+                            'referencia': _refCtrl.text,
+                            'lat': _dirLat,
+                            'lng': _dirLng,
+                          } : null,
+                        ),
+                        transitionsBuilder: (_, anim, __, child) =>
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 1),
+                                end: Offset.zero,
+                              ).animate(CurvedAnimation(
+                                  parent: anim, curve: Curves.easeOutCubic)),
+                              child: child,
+                            ),
+                        transitionDuration: const Duration(milliseconds: 320),
+                      ),
+                    );
+                    if (result != null && mounted) {
+                      setState(() {
+                        _dirCtrl.text  = result['direccion'] ?? '';
+                        _refCtrl.text  = result['referencia'] ?? '';
+                        _dirLat        = result['lat'] as double?;
+                        _dirLng        = result['lng'] as double?;
+                        _dirNombre     = result['nombre'] as String?;
+                      });
+                    }
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF263348),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _dirCtrl.text.isNotEmpty
+                            ? const Color(0xFF4ADE80).withValues(alpha: 0.4)
+                            : Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Row(children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF6B35).withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.map_outlined,
+                            color: Color(0xFFFF6B35), size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: _dirCtrl.text.isEmpty
+                          ? Column(crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            const Text('Seleccionar en el mapa',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14)),
+                            Text('Toca para mover el pin a tu ubicación',
+                                style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.35),
+                                    fontSize: 11)),
+                          ])
+                          : Column(crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            if (_dirNombre != null && _dirNombre!.isNotEmpty)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF6B35).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(_dirNombre!,
+                                    style: const TextStyle(
+                                        color: Color(0xFFFF6B35),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            Text(_dirCtrl.text,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                            if (_refCtrl.text.isNotEmpty)
+                              Text(_refCtrl.text,
+                                  style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.4),
+                                      fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                          ]),
+                      ),
+                      Icon(
+                        _dirCtrl.text.isNotEmpty
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.chevron_right_rounded,
+                        color: _dirCtrl.text.isNotEmpty
+                            ? const Color(0xFF4ADE80)
+                            : Colors.white24,
+                        size: 20,
+                      ),
+                    ]),
+                  ),
+                ),
+                // Coordenadas guardadas (debug badge pequeño)
+                if (_dirLat != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Row(children: [
+                      const Icon(Icons.gps_fixed,
+                          size: 11, color: Color(0xFF4ADE80)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Ubicación guardada · '
+                        '${_dirLat!.toStringAsFixed(4)}, '
+                        '${_dirLng!.toStringAsFixed(4)}',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            fontSize: 10),
+                      ),
+                    ]),
+                  ),
               ],
 
               if (_tipo == 'retirar')
@@ -1126,67 +1264,143 @@ class _PanelCupon extends StatelessWidget {
       required this.onQuitar});
 
   @override
-  Widget build(BuildContext context) => Column(children: [
-    Row(children: [
-      Expanded(child: TextField(
-        controller: ctrl, enabled: cuponOk == null,
-        textCapitalization: TextCapitalization.characters,
-        style: const TextStyle(color: Colors.white,
-            fontWeight: FontWeight.bold, letterSpacing: 2),
-        decoration: InputDecoration(
-          hintText: 'CÓDIGO',
-          hintStyle: const TextStyle(color: Colors.white24, letterSpacing: 2),
-          filled: true, fillColor: _kCard2,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.08))),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: _kNaranja)),
-        ),
-      )),
-      const SizedBox(width: 10),
-      cuponOk != null
-          ? IconButton(icon: const Icon(Icons.close, color: Colors.red),
-              onPressed: onQuitar)
-          : ElevatedButton(onPressed: onAplicar,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _kNaranja, foregroundColor: Colors.white,
-                  elevation: 0, padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 13),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10))),
-              child: const Text('Aplicar',
-                  style: TextStyle(fontWeight: FontWeight.bold))),
-    ]),
-    if (cuponOk != null) ...[
-      const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-        ),
-        child: Row(children: [
-          const Text('✅', style: TextStyle(fontSize: 14)),
-          const SizedBox(width: 8),
-          Text('Cupón "$cuponOk" — -\$${descuento.toStringAsFixed(2)}',
-              style: const TextStyle(color: Colors.green,
-                  fontSize: 12, fontWeight: FontWeight.w600)),
-        ]),
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 300),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: cuponOk != null
+          ? Colors.green.withValues(alpha: 0.05)
+          : _kCard2,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: cuponOk != null
+            ? Colors.green.withValues(alpha: 0.3)
+            : cuponErr != null
+                ? Colors.red.withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.06),
+        width: cuponOk != null ? 1.5 : 1,
       ),
-    ],
-    if (cuponErr != null) ...[
-      const SizedBox(height: 6),
-      Text(cuponErr!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-    ],
-  ]);
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+      // Header sección
+      Row(children: [
+        Icon(cuponOk != null ? Icons.local_offer : Icons.local_offer_outlined,
+            size: 15, color: cuponOk != null ? Colors.green : _kNaranja),
+        const SizedBox(width: 8),
+        Text(cuponOk != null ? 'Cupón aplicado' : 'Tengo un cupón',
+            style: TextStyle(
+                color: cuponOk != null ? Colors.green : Colors.white,
+                fontWeight: FontWeight.w700, fontSize: 13)),
+        if (cuponOk != null) ...[
+          const Spacer(),
+          GestureDetector(
+            onTap: onQuitar,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8)),
+              child: const Text('Quitar', style: TextStyle(
+                  color: Colors.red, fontSize: 11,
+                  fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ]),
+      const SizedBox(height: 10),
+
+      // Cupón aplicado — vista compacta
+      if (cuponOk != null)
+        Row(children: [
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('🎟️', style: TextStyle(fontSize: 12)),
+                  const SizedBox(width: 6),
+                  Text(cuponOk!, style: const TextStyle(
+                      color: Colors.green, fontWeight: FontWeight.w900,
+                      fontSize: 13, letterSpacing: 1)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text('Descuento aplicado correctamente',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4), fontSize: 11)),
+          ])),
+          Text('-\$${descuento.toStringAsFixed(2)}',
+              style: const TextStyle(color: Colors.green,
+                  fontWeight: FontWeight.w900, fontSize: 18)),
+        ])
+      else ...[
+        // Campo de código
+        Row(children: [
+          Expanded(child: TextField(
+            controller: ctrl,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(color: Colors.white,
+                fontWeight: FontWeight.w700, letterSpacing: 3, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'CÓDIGO',
+              hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  letterSpacing: 2, fontSize: 13),
+              prefixIcon: const Icon(Icons.confirmation_number_outlined,
+                  color: Colors.white38, size: 18),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                      color: _kNaranja.withValues(alpha: 0.6), width: 1.5)),
+            ),
+          )),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: onAplicar,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              decoration: BoxDecoration(
+                color: _kNaranja,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [BoxShadow(
+                    color: _kNaranja.withValues(alpha: 0.3),
+                    blurRadius: 8, offset: const Offset(0, 3))],
+              ),
+              child: const Text('Aplicar', style: TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800,
+                  fontSize: 13)),
+            ),
+          ),
+        ]),
+
+        // Error
+        if (cuponErr != null) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            const Icon(Icons.error_outline_rounded,
+                color: Colors.red, size: 14),
+            const SizedBox(width: 6),
+            Text(cuponErr!, style: const TextStyle(
+                color: Colors.red, fontSize: 12)),
+          ]),
+        ],
+      ],
+    ]),
+  );
 }
 
 // ── Pantalla de éxito ─────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ class _HomeMeseroState extends State<HomeMesero> {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: _kBg,
         appBar: _MeseroAppBar(uid: uid),
@@ -34,6 +34,7 @@ class _HomeMeseroState extends State<HomeMesero> {
           _TabMesas(meseroUid: uid),
           const _TabPedidos(),
           _TabNuevaOrden(meseroUid: uid),
+          const _TabHistorialTurno(),
         ]),
       ),
     );
@@ -44,7 +45,7 @@ class _HomeMeseroState extends State<HomeMesero> {
 class _MeseroAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String uid;
   const _MeseroAppBar({required this.uid});
-  @override Size get preferredSize => const Size.fromHeight(110);
+  @override Size get preferredSize => const Size.fromHeight(108);
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +103,7 @@ class _MeseroAppBar extends StatelessWidget implements PreferredSizeWidget {
               Tab(icon: Icon(Icons.table_restaurant, size: 20), text: 'Mesas'),
               Tab(icon: Icon(Icons.receipt_long, size: 20), text: 'Pedidos'),
               Tab(icon: Icon(Icons.add_shopping_cart, size: 20), text: 'Nueva Orden'),
+              Tab(icon: Icon(Icons.bar_chart, size: 20), text: 'Mi Turno'),
             ],
           ),
         );
@@ -1158,14 +1160,15 @@ class _DetalleMesaSheet extends StatelessWidget {
         }),
         const SizedBox(height: 12),
 
-        // Botones
-        if (listo)
+        // Botones de acción
+        const SizedBox(height: 4),
+        if (listo) ...[
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
-                HapticFeedback.mediumImpact();
+                HapticFeedback.heavyImpact();
                 await PedidoService().actualizarEstado(pedido['id'], 'Entregado');
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -1174,7 +1177,7 @@ class _DetalleMesaSheet extends StatelessWidget {
                       behavior: SnackBarBehavior.floating));
                 }
               },
-              icon: const Icon(Icons.check_circle),
+              icon: const Icon(Icons.check_circle_outline),
               label: const Text('MARCAR ENTREGADO',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
@@ -1184,7 +1187,285 @@ class _DetalleMesaSheet extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12))),
             ),
           ),
+        ] else ...[
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              onPressed: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: _kCard,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    title: const Text('¿Cancelar pedido?',
+                        style: TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold)),
+                    content: const Text('Se cancelará el pedido de esta mesa.',
+                        style: TextStyle(color: Colors.white54)),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('No',
+                              style: TextStyle(color: Colors.white38))),
+                      ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white, elevation: 0),
+                          child: const Text('Sí, cancelar')),
+                    ],
+                  ),
+                );
+                if (ok == true && context.mounted) {
+                  Navigator.pop(context);
+                  await PedidoService().actualizarEstado(pedido['id'], 'Cancelado');
+                }
+              },
+              icon: const Icon(Icons.cancel_outlined, size: 16),
+              label: const Text('Cancelar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12))),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                // Navegar a nueva orden con mesa preseleccionada
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('➕ Añadiendo a Mesa ${pedido['numeroMesa']}'),
+                  backgroundColor: _kTeal,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ));
+                DefaultTabController.of(context).animateTo(2);
+              },
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Añadir más'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kTeal, foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12))),
+            )),
+          ]),
+        ],
+        const SizedBox(height: 8),
       ]),
     );
   }
+}
+
+// ══════════════════════ TAB 4: HISTORIAL DEL TURNO ═══════════════════════════
+class _TabHistorialTurno extends StatefulWidget {
+  const _TabHistorialTurno();
+  @override State<_TabHistorialTurno> createState() => _TabHistorialTurnoState();
+}
+
+class _TabHistorialTurnoState extends State<_TabHistorialTurno> {
+  String _filtro = 'todos';
+
+  @override
+  Widget build(BuildContext context) {
+    final hoyInicio = DateTime.now();
+    final inicio    = DateTime(hoyInicio.year, hoyInicio.month, hoyInicio.day);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('pedidos')
+          .where('tipoPedido', isEqualTo: 'mesa')
+          .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(inicio))
+          .orderBy('fecha', descending: true)
+          .snapshots(),
+      builder: (_, snap) {
+        final todos = (snap.data?.docs ?? [])
+            .map((d) => PedidoModel.fromFirestore(
+                d.id, d.data() as Map<String, dynamic>))
+            .toList();
+
+        final entregados = todos.where((p) => p.estado == 'Entregado').toList();
+        final cancelados = todos.where((p) => p.estado == 'Cancelado').length;
+        final ventasHoy  = entregados.fold(0.0, (s, p) => s + p.total);
+        final ticketProm = entregados.isEmpty
+            ? 0.0 : ventasHoy / entregados.length;
+
+        var filtrados = todos;
+        if (_filtro == 'Entregado') {
+          filtrados = todos.where((p) => p.estado == 'Entregado').toList();
+        } else if (_filtro == 'Cancelado') {
+          filtrados = todos.where((p) => p.estado == 'Cancelado').toList();
+        } else if (_filtro == 'activos') {
+          filtrados = todos.where((p) =>
+              ['Pendiente','Preparando','Listo'].contains(p.estado)).toList();
+        }
+
+        return Column(children: [
+          // ── KPIs ──────────────────────────────────────────────────────
+          Container(
+            color: const Color(0xFF0D1B2A),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(children: [
+              _KpiTurno('✅', '${entregados.length}', 'Entregadas', Colors.green),
+              _Sep(),
+              _KpiTurno('❌', '$cancelados', 'Cancelados', Colors.red),
+              _Sep(),
+              _KpiTurno('💰', '\$${ventasHoy.toStringAsFixed(0)}', 'Ventas', _kGreen),
+              _Sep(),
+              _KpiTurno('🎯', '\$${ticketProm.toStringAsFixed(0)}', 'Ticket prom.', Colors.purple),
+            ]),
+          ),
+
+          // ── Filtros ───────────────────────────────────────────────────
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Row(children: [
+              ('todos',     'Todos',     Colors.white38),
+              ('activos',   '🔄 Activos',  Colors.orange),
+              ('Entregado', '✅ Entregados', Colors.green),
+              ('Cancelado', '❌ Cancelados', Colors.red),
+            ].map((f) {
+              final sel = _filtro == f.$1;
+              return GestureDetector(
+                onTap: () => setState(() => _filtro = f.$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: sel
+                        ? f.$3.withValues(alpha: 0.15) : _kCard,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: sel
+                            ? f.$3.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.06)),
+                  ),
+                  child: Text(f.$2, style: TextStyle(
+                      color: sel ? f.$3 : Colors.white38,
+                      fontSize: 12,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w400)),
+                ),
+              );
+            }).toList()),
+          ),
+          const SizedBox(height: 8),
+
+          // ── Lista ─────────────────────────────────────────────────────
+          Expanded(child: filtrados.isEmpty
+              ? Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Text('📋', style: TextStyle(fontSize: 48)),
+                const SizedBox(height: 12),
+                Text('Sin pedidos${_filtro != 'todos' ? ' con este filtro' : ' hoy'}',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 14)),
+              ]))
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                  itemCount: filtrados.length,
+                  itemBuilder: (_, i) {
+                    final p     = filtrados[i];
+                    final color = p.estado == 'Entregado' ? Colors.green
+                        : p.estado == 'Cancelado' ? Colors.red
+                        : p.estado == 'Listo' ? _kGreen
+                        : Colors.orange;
+                    final hora = '${p.fecha.hour.toString().padLeft(2,'0')}:'
+                        '${p.fecha.minute.toString().padLeft(2,'0')}';
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _kCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: color.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(children: [
+                        Container(
+                          width: 42, height: 42,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(child: Text(
+                            p.estado == 'Entregado' ? '✅'
+                                : p.estado == 'Cancelado' ? '❌'
+                                : p.estado == 'Listo' ? '🍕' : '⏳',
+                            style: const TextStyle(fontSize: 20))),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text('Mesa ${p.numeroMesa ?? '?'}',
+                              style: const TextStyle(color: Colors.white,
+                                  fontWeight: FontWeight.w700, fontSize: 14)),
+                          Text(
+                            '${p.items.length} producto${p.items.length == 1 ? '' : 's'}'
+                            ' · $hora',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.35),
+                                fontSize: 11)),
+                          if (p.notasEspeciales?.isNotEmpty == true)
+                            Text('📝 ${p.notasEspeciales}',
+                                style: const TextStyle(
+                                    color: Colors.amber, fontSize: 10),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                        ])),
+                        Column(crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                          Text('\$${p.total.toStringAsFixed(2)}',
+                              style: TextStyle(color: color,
+                                  fontWeight: FontWeight.w800, fontSize: 14)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(p.estado, style: TextStyle(
+                                color: color, fontSize: 9,
+                                fontWeight: FontWeight.w700)),
+                          ),
+                        ]),
+                      ]),
+                    );
+                  },
+                )),
+        ]);
+      },
+    );
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+class _KpiTurno extends StatelessWidget {
+  final String emoji, valor, label;
+  final Color color;
+  const _KpiTurno(this.emoji, this.valor, this.label, this.color);
+  @override
+  Widget build(BuildContext context) => Expanded(child: Column(children: [
+    Text(emoji, style: const TextStyle(fontSize: 16)),
+    Text(valor, style: TextStyle(color: color,
+        fontWeight: FontWeight.w900, fontSize: 15)),
+    Text(label, style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.3), fontSize: 9),
+        textAlign: TextAlign.center),
+  ]));
+}
+
+class _Sep extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+      width: 1, height: 32,
+      color: Colors.white.withValues(alpha: 0.06));
 }

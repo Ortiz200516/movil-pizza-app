@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/producto_model.dart';
 import '../services/producto_service.dart';
 import '../carrito/carrito_provider.dart';
+import '../widgets/skeleton_widgets.dart';
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
 const _kNaranja = Color(0xFFFF6B35);
@@ -174,7 +175,7 @@ class _MenuPageState extends State<MenuPage> {
                         crossAxisCount: 2, childAspectRatio: 0.72,
                         crossAxisSpacing: 10, mainAxisSpacing: 10),
                     delegate: SliverChildBuilderDelegate(
-                        (_, __) => const _SkeletonCard(), childCount: 6),
+                        (_, __) => const SkeletonMenuCard(), childCount: 6),
                   ),
                 );
               }
@@ -312,7 +313,7 @@ class _SearchBar extends StatelessWidget {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     children: List.generate(4,
-                        (_) => const _SkeletonChip()),
+                        (_) => const SkeletonCatChip()),
                   );
                 }
                 final docs = snap.data!.docs
@@ -397,81 +398,8 @@ class _CatChip extends StatelessWidget {
   );
 }
 
-// ── Skeleton card ─────────────────────────────────────────────────────────────
-class _SkeletonCard extends StatefulWidget {
-  const _SkeletonCard();
-  @override
-  State<_SkeletonCard> createState() => _SkeletonCardState();
-}
 
-class _SkeletonCardState extends State<_SkeletonCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this,
-        duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.3, end: 0.7).animate(_ctrl);
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => Container(
-        decoration: BoxDecoration(
-          color: _kCard,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(children: [
-          Expanded(flex: 5, child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: _anim.value * 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-          )),
-          Expanded(flex: 3, child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              Container(height: 12, width: double.infinity,
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: _anim.value * 0.1),
-                      borderRadius: BorderRadius.circular(6))),
-              Container(height: 10, width: 80,
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: _anim.value * 0.06),
-                      borderRadius: BorderRadius.circular(6))),
-              Container(height: 10, width: 60,
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: _anim.value * 0.08),
-                      borderRadius: BorderRadius.circular(6))),
-            ]),
-          )),
-        ]),
-      ),
-    );
-  }
-}
-
-class _SkeletonChip extends StatelessWidget {
-  const _SkeletonChip();
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 90, height: 34,
-    margin: const EdgeInsets.only(right: 8),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(20),
-    ),
-  );
-}
+// _SkeletonChip → reemplazado por SkeletonCatChip de skeleton_widgets.dart
 
 // ── Tarjeta producto ──────────────────────────────────────────────────────────
 class _TarjetaProducto extends StatefulWidget {
@@ -545,8 +473,9 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorDeCat(widget.producto.categoria);
-    final icono = widget.producto.icono;
+    final p     = widget.producto;
+    final color = _colorDeCat(p.categoria);
+    final tieneImagen = p.imagenUrl != null && p.imagenUrl!.isNotEmpty;
 
     return GestureDetector(
       onTap: _verDetalle,
@@ -558,111 +487,162 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
           decoration: BoxDecoration(
             color: _kCard,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                  color: color.withValues(alpha: 0.07),
-                  blurRadius: 14, offset: const Offset(0, 4)),
-            ],
+            border: Border.all(
+                color: p.disponible
+                    ? color.withValues(alpha: 0.22)
+                    : Colors.red.withValues(alpha: 0.25),
+                width: 1.5),
+            boxShadow: [BoxShadow(
+                color: color.withValues(alpha: 0.08),
+                blurRadius: 16, offset: const Offset(0, 5))],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
 
-            // Área imagen/emoji
-            Expanded(flex: 5, child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.08),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
+            // ── Área imagen ───────────────────────────────────────────
+            Expanded(flex: 6, child: Stack(children: [
+
+              // Imagen o emoji
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16)),
+                child: tieneImagen
+                    ? Image.network(
+                        p.imagenUrl!,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _EmojiPlaceholder(
+                            icono: p.icono, color: color),
+                        loadingBuilder: (_, child, prog) => prog == null
+                            ? child
+                            : _EmojiPlaceholder(icono: p.icono, color: color),
+                      )
+                    : _EmojiPlaceholder(icono: p.icono, color: color),
               ),
-              child: Stack(children: [
-                Center(child: Text(icono,
-                    style: const TextStyle(fontSize: 52))),
 
-                // Badge categoría
-                Positioned(top: 8, left: 8,
+              // Gradiente inferior sobre imagen para legibilidad
+              if (tieneImagen)
+                Positioned(
+                  bottom: 0, left: 0, right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 7, vertical: 3),
+                    height: 48,
                     decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(6)),
-                    child: Text(_capitalizar(widget.producto.categoria),
-                        style: TextStyle(color: color, fontSize: 9,
-                            fontWeight: FontWeight.w800)),
-                  ),
-                ),
-
-                // Badge cantidad en carrito
-                if (_cantEnCarrito > 0)
-                  Positioned(top: 8, right: 8,
-                    child: Container(
-                      width: 22, height: 22,
-                      decoration: const BoxDecoration(
-                          color: _kNaranja, shape: BoxShape.circle),
-                      child: Center(child: Text('$_cantEnCarrito',
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 10, fontWeight: FontWeight.bold))),
-                    ),
-                  ),
-
-                // Overlay no disponible
-                if (!widget.producto.disponible)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16))),
-                      child: const Center(
-                        child: Text('NO DISPONIBLE',
-                            style: TextStyle(color: Colors.white54,
-                                fontSize: 10, fontWeight: FontWeight.bold,
-                                letterSpacing: 1)),
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.65),
+                          Colors.transparent,
+                        ],
                       ),
                     ),
                   ),
-              ]),
-            )),
+                ),
 
-            // Info + botón agregar
-            Expanded(flex: 3, child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Badge categoría (top-left)
+              Positioned(top: 8, left: 8,
+                child: _BadgeCategoria(
+                    label: _capitalizar(p.categoria), color: color)),
+
+              // Badge cantidad en carrito (top-right)
+              if (_cantEnCarrito > 0)
+                Positioned(top: 8, right: 8,
+                  child: _BadgeCantidad(cantidad: _cantEnCarrito)),
+
+              // Indicador disponibilidad (dot bottom-right)
+              Positioned(bottom: 8, right: 8,
+                child: _DotDisponible(disponible: p.disponible)),
+
+              // Overlay no disponible
+              if (!p.disponible)
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16)),
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.58),
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('⛔', style: TextStyle(fontSize: 24)),
+                            SizedBox(height: 6),
+                            Text('No disponible',
+                                style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ])),
+
+            // ── Info inferior ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(widget.producto.nombre,
+
+                // Nombre
+                Text(p.nombre,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
-                        fontSize: 13)),
+                        fontSize: 13,
+                        height: 1.25)),
+                const SizedBox(height: 2),
+
+                // Tiempo preparación
+                Row(children: [
+                  Icon(Icons.schedule_outlined,
+                      size: 10,
+                      color: Colors.white.withValues(alpha: 0.3)),
+                  const SizedBox(width: 3),
+                  Text('~${p.tiempoPreparacion} min',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 10)),
+                ]),
+                const SizedBox(height: 8),
+
+                // Precio + botón agregar
                 Row(children: [
                   Expanded(child: Text(
-                    '\$${widget.producto.precio.toStringAsFixed(2)}',
-                    style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14),
-                  )),
-                  if (widget.producto.disponible)
+                      '\$${p.precio.toStringAsFixed(2)}',
+                      style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15))),
+                  if (p.disponible)
                     GestureDetector(
                       onTap: _agregarRapido,
-                      child: Container(
-                        width: 30, height: 30,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 32, height: 32,
                         decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.18),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                                color: color.withValues(alpha: 0.4))),
-                        child: Icon(Icons.add, color: color, size: 18),
+                          color: _cantEnCarrito > 0
+                              ? color : color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: color.withValues(alpha: 0.5)),
+                        ),
+                        child: Icon(Icons.add_rounded,
+                            color: _cantEnCarrito > 0
+                                ? Colors.white : color,
+                            size: 18),
                       ),
                     ),
                 ]),
               ]),
-            )),
+            ),
           ]),
         ),
       ),
@@ -670,130 +650,502 @@ class _TarjetaProductoState extends State<_TarjetaProducto>
   }
 }
 
-// ── Bottom sheet detalle ──────────────────────────────────────────────────────
-class _DetalleSheet extends StatelessWidget {
+// ── Widgets auxiliares de la tarjeta ─────────────────────────────────────────
+
+/// Placeholder con emoji cuando no hay imagen
+class _EmojiPlaceholder extends StatelessWidget {
+  final String icono;
+  final Color color;
+  const _EmojiPlaceholder({required this.icono, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    height: double.infinity,
+    color: color.withValues(alpha: 0.09),
+    child: Center(child: Text(icono,
+        style: const TextStyle(fontSize: 54))),
+  );
+}
+
+/// Badge de categoría con fondo semitransparente blur-like
+class _BadgeCategoria extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _BadgeCategoria({required this.label, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.85),
+      borderRadius: BorderRadius.circular(8),
+      boxShadow: [BoxShadow(
+          color: Colors.black.withValues(alpha: 0.25),
+          blurRadius: 4, offset: const Offset(0, 1))],
+    ),
+    child: Text(label, style: const TextStyle(
+        color: Colors.white, fontSize: 9,
+        fontWeight: FontWeight.w800, letterSpacing: 0.3)),
+  );
+}
+
+/// Badge de cantidad en carrito
+class _BadgeCantidad extends StatelessWidget {
+  final int cantidad;
+  const _BadgeCantidad({required this.cantidad});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 24, height: 24,
+    decoration: BoxDecoration(
+      color: _kNaranja,
+      shape: BoxShape.circle,
+      boxShadow: [BoxShadow(
+          color: _kNaranja.withValues(alpha: 0.5),
+          blurRadius: 6, spreadRadius: 1)],
+    ),
+    child: Center(child: Text('$cantidad',
+        style: const TextStyle(color: Colors.white,
+            fontSize: 11, fontWeight: FontWeight.w900))),
+  );
+}
+
+/// Indicador dot de disponibilidad
+class _DotDisponible extends StatelessWidget {
+  final bool disponible;
+  const _DotDisponible({required this.disponible});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 6, height: 6,
+        decoration: BoxDecoration(
+          color: disponible
+              ? const Color(0xFF4ADE80) : Colors.redAccent,
+          shape: BoxShape.circle,
+        ),
+      ),
+      const SizedBox(width: 4),
+      Text(disponible ? 'Disponible' : 'Agotado',
+          style: const TextStyle(
+              color: Colors.white, fontSize: 8,
+              fontWeight: FontWeight.w700)),
+    ]),
+  );
+}
+
+// ── Detalle de producto — pantalla completa ──────────────────────────────────
+class _DetalleSheet extends StatefulWidget {
   final ProductoModel producto;
   const _DetalleSheet({required this.producto});
+  @override
+  State<_DetalleSheet> createState() => _DetalleSheetState();
+}
+
+class _DetalleSheetState extends State<_DetalleSheet>
+    with SingleTickerProviderStateMixin {
+  int    _cantidad   = 1;
+  String _notaExtra  = '';
+  bool   _agregando  = false;
+  late AnimationController _btnCtrl;
+  late Animation<double>   _btnScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _btnCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 200));
+    _btnScale = Tween<double>(begin: 1.0, end: 0.94).animate(
+        CurvedAnimation(parent: _btnCtrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() { _btnCtrl.dispose(); super.dispose(); }
+
+  double get _totalLinea => widget.producto.precio * _cantidad;
+
+  Future<void> _agregar() async {
+    if (_agregando || !widget.producto.disponible) return;
+    setState(() => _agregando = true);
+    _btnCtrl.forward().then((_) => _btnCtrl.reverse());
+    HapticFeedback.mediumImpact();
+    final carrito = Provider.of<CarritoProvider>(context, listen: false);
+    final p = widget.producto;
+    for (int i = 0; i < _cantidad; i++) {
+      carrito.agregarProducto({
+        'id': p.id, 'nombre': p.nombre, 'precio': p.precio,
+        'categoria': p.categoria, 'icono': p.icono,
+        'imagenUrl': p.imagenUrl ?? '',
+        'notasEspeciales': _notaExtra.trim(),
+      });
+    }
+    await Future.delayed(const Duration(milliseconds: 120));
+    HapticFeedback.lightImpact();
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        Text(p.icono, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          _cantidad == 1
+              ? '${p.nombre} agregado al carrito'
+              : '$_cantidad × ${p.nombre} agregados',
+          style: const TextStyle(fontWeight: FontWeight.w600))),
+      ]),
+      backgroundColor: _colorDeCat(p.categoria),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      duration: const Duration(seconds: 2),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorDeCat(producto.categoria);
+    final p     = widget.producto;
+    final color = _colorDeCat(p.categoria);
+    final tieneImagen = p.imagenUrl != null && p.imagenUrl!.isNotEmpty;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      maxChildSize: 0.85,
-      minChildSize: 0.4,
+      initialChildSize: 0.78,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
-          color: _kCard,
+          color: _kBg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: ListView(
-          controller: ctrl,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-          children: [
-            Center(child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.white12,
-                  borderRadius: BorderRadius.circular(2)),
-            )),
+        child: Column(children: [
 
-            // Emoji grande
-            Center(child: Container(
-              width: 100, height: 100,
-              decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: 0.1)),
-              child: Center(child: Text(producto.icono,
-                  style: const TextStyle(fontSize: 56))),
-            )),
-            const SizedBox(height: 16),
+          // Handle
+          Center(child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            width: 36, height: 4,
+            decoration: BoxDecoration(color: Colors.white12,
+                borderRadius: BorderRadius.circular(2)))),
 
-            // Nombre y precio
-            Row(children: [
-              Expanded(child: Text(producto.nombre,
-                  style: const TextStyle(color: Colors.white,
-                      fontWeight: FontWeight.w900, fontSize: 20))),
-              Text('\$${producto.precio.toStringAsFixed(2)}',
-                  style: TextStyle(color: color,
-                      fontWeight: FontWeight.w900, fontSize: 22)),
-            ]),
+          // Contenido scrollable
+          Expanded(child: ListView(controller: ctrl, padding: EdgeInsets.zero,
+            children: [
 
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Text(_capitalizar(producto.categoria),
-                  style: TextStyle(color: color, fontSize: 11,
-                      fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(height: 14),
-
-            if (producto.descripcion.isNotEmpty) ...[
-              Text(producto.descripcion,
-                  style: const TextStyle(
-                      color: Colors.white54, fontSize: 14, height: 1.6)),
-              const SizedBox(height: 16),
-            ],
-
-            if (!producto.disponible)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: Colors.red.withValues(alpha: 0.2)),
+              // ── Imagen hero ──────────────────────────────────────────
+              Stack(children: [
+                SizedBox(
+                  height: 240, width: double.infinity,
+                  child: tieneImagen
+                      ? Image.network(p.imagenUrl!, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _HeroEmoji(icono: p.icono, color: color))
+                      : _HeroEmoji(icono: p.icono, color: color),
                 ),
-                child: const Row(children: [
-                  Text('⛔', style: TextStyle(fontSize: 14)),
-                  SizedBox(width: 8),
-                  Text('No disponible en este momento',
-                      style: TextStyle(color: Colors.red, fontSize: 13)),
+                // Gradiente inferior
+                Positioned(bottom: 0, left: 0, right: 0,
+                  child: Container(height: 80,
+                    decoration: BoxDecoration(gradient: LinearGradient(
+                      begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                      colors: [_kBg, _kBg.withValues(alpha: 0)])))),
+                // Badge categoría
+                Positioned(top: 14, left: 16,
+                  child: _BadgeCategoria(
+                      label: _capitalizar(p.categoria), color: color)),
+                // Disponibilidad
+                Positioned(top: 14, right: 56,
+                  child: _DotDisponible(disponible: p.disponible)),
+                // Cerrar
+                Positioned(top: 10, right: 12,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          shape: BoxShape.circle),
+                      child: const Icon(Icons.close_rounded,
+                          color: Colors.white70, size: 17)))),
+              ]),
+
+              // ── Info ─────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+
+                  // Nombre
+                  Text(p.nombre, style: const TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w900, fontSize: 22, height: 1.2)),
+                  const SizedBox(height: 8),
+
+                  // Meta info
+                  Row(children: [
+                    Icon(Icons.schedule_outlined, size: 13,
+                        color: Colors.white.withValues(alpha: 0.35)),
+                    const SizedBox(width: 4),
+                    Text('~${p.tiempoPreparacion} min', style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                    const SizedBox(width: 14),
+                    Icon(Icons.restaurant_outlined, size: 13,
+                        color: Colors.white.withValues(alpha: 0.35)),
+                    const SizedBox(width: 4),
+                    Text(_capitalizar(p.categoria), style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Descripción
+                  if (p.descripcion.isNotEmpty) ...[
+                    Text(p.descripcion, style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: 14, height: 1.65)),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Opciones
+                  if (p.opciones != null && p.opciones!.isNotEmpty) ...[
+                    _SeccionOpciones(opciones: p.opciones!, color: color),
+                    const SizedBox(height: 4),
+                  ],
+
+                  // Nota especial
+                  _CampoNota(onChanged: (v) =>
+                      setState(() => _notaExtra = v), color: color),
+                  const SizedBox(height: 16),
+
+                  // No disponible
+                  if (!p.disponible)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.25))),
+                      child: const Row(children: [
+                        Text('⛔', style: TextStyle(fontSize: 16)),
+                        SizedBox(width: 10),
+                        Expanded(child: Text(
+                            'No disponible en este momento',
+                            style: TextStyle(color: Colors.red, fontSize: 13))),
+                      ])),
+                  const SizedBox(height: 100),
                 ]),
-              )
-            else
-              ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  Provider.of<CarritoProvider>(context, listen: false)
-                      .agregarProducto({
-                    'id': producto.id, 'nombre': producto.nombre,
-                    'precio': producto.precio, 'categoria': producto.categoria,
-                    'icono': producto.icono,
-                  });
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('${producto.nombre} agregado al carrito 🛒',
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    backgroundColor: color,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    duration: const Duration(seconds: 2),
-                  ));
-                },
-                icon: const Icon(Icons.add_shopping_cart, size: 18),
-                label: const Text('Agregar al carrito',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: color,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                ),
               ),
-          ],
-        ),
+            ],
+          )),
+
+          // ── Barra fija: cantidad + agregar ───────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            decoration: BoxDecoration(
+              color: _kCard,
+              border: Border(top: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.06)))),
+            child: Row(children: [
+              // Selector cantidad
+              Container(
+                decoration: BoxDecoration(
+                  color: _kBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  _BtnCantidad(icono: Icons.remove_rounded, color: color,
+                    onTap: _cantidad > 1 ? () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _cantidad--);
+                    } : null),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('$_cantidad', style: TextStyle(
+                        color: color, fontWeight: FontWeight.w900,
+                        fontSize: 18))),
+                  _BtnCantidad(icono: Icons.add_rounded, color: color,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _cantidad++);
+                    }),
+                ]),
+              ),
+              const SizedBox(width: 14),
+              // Botón agregar
+              Expanded(child: AnimatedBuilder(
+                animation: _btnScale,
+                builder: (_, child) =>
+                    Transform.scale(scale: _btnScale.value, child: child),
+                child: GestureDetector(
+                  onTap: p.disponible ? _agregar : null,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    decoration: BoxDecoration(
+                      color: p.disponible
+                          ? color : Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: p.disponible ? [BoxShadow(
+                          color: color.withValues(alpha: 0.35),
+                          blurRadius: 14, offset: const Offset(0, 5))] : null),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                      Icon(
+                        _agregando
+                            ? Icons.hourglass_top_rounded
+                            : Icons.add_shopping_cart_rounded,
+                        color: p.disponible ? Colors.white : Colors.white24,
+                        size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        p.disponible
+                            ? 'Agregar · \$${_totalLinea.toStringAsFixed(2)}'
+                            : 'No disponible',
+                        style: TextStyle(
+                            color: p.disponible
+                                ? Colors.white : Colors.white24,
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                    ]),
+                  ),
+                ),
+              )),
+            ]),
+          ),
+        ]),
       ),
     );
   }
+}
+
+// ── Hero emoji ────────────────────────────────────────────────────────────────
+class _HeroEmoji extends StatelessWidget {
+  final String icono; final Color color;
+  const _HeroEmoji({required this.icono, required this.color});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity, height: double.infinity,
+    color: color.withValues(alpha: 0.09),
+    child: Center(child: Text(icono, style: const TextStyle(fontSize: 96))));
+}
+
+// ── Sección de opciones ───────────────────────────────────────────────────────
+class _SeccionOpciones extends StatefulWidget {
+  final Map<String, dynamic> opciones; final Color color;
+  const _SeccionOpciones({required this.opciones, required this.color});
+  @override State<_SeccionOpciones> createState() => _SeccionOpcionesState();
+}
+
+class _SeccionOpcionesState extends State<_SeccionOpciones> {
+  final Map<String, String> _sel = {};
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start,
+      children: widget.opciones.entries.map((g) {
+        final vals = g.value is List
+            ? (g.value as List).map((v) => v.toString()).toList()
+            : <String>[];
+        if (vals.isEmpty) return const SizedBox.shrink();
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_capitalizar(g.key), style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: vals.map((v) {
+            final sel = _sel[g.key] == v;
+            return GestureDetector(
+              onTap: () { HapticFeedback.selectionClick();
+                  setState(() => _sel[g.key] = v); },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  color: sel ? widget.color.withValues(alpha: 0.15) : _kCard,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: sel
+                        ? widget.color.withValues(alpha: 0.6)
+                        : Colors.white.withValues(alpha: 0.08),
+                    width: sel ? 1.5 : 1)),
+                child: Text(v, style: TextStyle(
+                    color: sel ? widget.color : Colors.white54,
+                    fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
+                    fontSize: 13))));
+          }).toList()),
+          const SizedBox(height: 16),
+        ]);
+      }).toList());
+  }
+}
+
+// ── Campo nota especial ───────────────────────────────────────────────────────
+class _CampoNota extends StatefulWidget {
+  final ValueChanged<String> onChanged; final Color color;
+  const _CampoNota({required this.onChanged, required this.color});
+  @override State<_CampoNota> createState() => _CampoNotaState();
+}
+
+class _CampoNotaState extends State<_CampoNota> {
+  bool _exp = false;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start, children: [
+    GestureDetector(
+      onTap: () => setState(() => _exp = !_exp),
+      child: Row(children: [
+        Icon(Icons.note_add_outlined, size: 15,
+            color: Colors.white.withValues(alpha: 0.4)),
+        const SizedBox(width: 8),
+        Text('Agregar nota especial', style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45), fontSize: 13)),
+        const Spacer(),
+        Icon(_exp ? Icons.keyboard_arrow_up_rounded
+            : Icons.keyboard_arrow_down_rounded,
+            color: Colors.white24, size: 18),
+      ])),
+    AnimatedCrossFade(
+      duration: const Duration(milliseconds: 200),
+      crossFadeState:
+          _exp ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+      firstChild: const SizedBox.shrink(),
+      secondChild: Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: TextField(
+          onChanged: widget.onChanged, maxLines: 2,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'Ej: sin cebolla, extra salsa...',
+            hintStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.25), fontSize: 12),
+            filled: true, fillColor: _kCard,
+            contentPadding: const EdgeInsets.all(12),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: widget.color.withValues(alpha: 0.5), width: 1.5)),
+          ))),
+    ),
+  ]);
+}
+
+// ── Botón cantidad ────────────────────────────────────────────────────────────
+class _BtnCantidad extends StatelessWidget {
+  final IconData icono; final Color color; final VoidCallback? onTap;
+  const _BtnCantidad(
+      {required this.icono, required this.color, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 40, height: 44,
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: onTap != null
+              ? color.withValues(alpha: 0.1) : Colors.transparent),
+      child: Icon(icono,
+          color: onTap != null ? color : Colors.white12, size: 20)));
 }
 
 // ── Estado vacío ──────────────────────────────────────────────────────────────

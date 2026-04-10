@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../models/pedido_model.dart';
 import '../carrito/carrito_provider.dart';
+import '../widgets/skeleton_widgets.dart';
 import 'calificacion_page.dart';
 import 'tracking_page.dart';
 
@@ -116,9 +117,11 @@ class _TabEnProceso extends StatelessWidget {
           .orderBy('fecha', descending: true)
           .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: _kNaranja));
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return ListView(
+            padding: const EdgeInsets.all(14),
+            children: const [SkeletonPedidosList(cantidad: 3)],
+          );
         }
         final todos = (snap.data?.docs ?? [])
             .map((d) => PedidoModel.fromFirestore(
@@ -449,9 +452,14 @@ class _TabHistorialState extends State<_TabHistorial> {
           .orderBy('fecha', descending: true)
           .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: _kNaranja));
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return CustomScrollView(slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+              sliver: SliverToBoxAdapter(
+                child: SkeletonPedidosList(cantidad: 5)),
+            ),
+          ]);
         }
 
         final todosFin = (snap.data?.docs ?? [])
@@ -821,89 +829,251 @@ class _GraficaMensual extends StatelessWidget {
 }
 
 // ── Tarjeta HISTORIAL ─────────────────────────────────────────────────────────
-class _TarjetaHistorial extends StatelessWidget {
+class _TarjetaHistorial extends StatefulWidget {
   final PedidoModel pedido;
   const _TarjetaHistorial({required this.pedido});
+  @override
+  State<_TarjetaHistorial> createState() => _TarjetaHistorialState();
+}
+
+class _TarjetaHistorialState extends State<_TarjetaHistorial>
+    with SingleTickerProviderStateMixin {
+  bool _agregando = false;
+  bool _agregado  = false;
+  late AnimationController _checkCtrl;
+  late Animation<double> _checkScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 400));
+    _checkScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _checkCtrl, curve: Curves.elasticOut));
+  }
+
+  @override
+  void dispose() { _checkCtrl.dispose(); super.dispose(); }
+
+  Future<void> _reordenar() async {
+    if (_agregando || _agregado) return;
+    setState(() => _agregando = true);
+    HapticFeedback.mediumImpact();
+
+    try {
+      final carrito = Provider.of<CarritoProvider>(context, listen: false);
+      for (final item in widget.pedido.items) {
+        final cant = (item['cantidad'] ?? 1) as int;
+        final producto = {
+          'id':        item['productoId'] ?? item['id'] ?? '',
+          'nombre':    item['productoNombre'] ?? item['nombre'] ?? '',
+          'precio':    ((item['precioUnitario'] ?? item['precio'] ?? 0.0) as num).toDouble(),
+          'categoria': item['productoCategoria'] ?? item['categoria'] ?? '',
+          'icono':     item['icono'] ?? '🍕',
+          'imagenUrl': item['imagenUrl'] ?? '',
+        };
+        for (int i = 0; i < cant; i++) {
+          carrito.agregarProducto(producto);
+        }
+      }
+
+      setState(() { _agregando = false; _agregado = true; });
+      _checkCtrl.forward();
+      HapticFeedback.heavyImpact();
+
+      // Reset después de 2.5s
+      await Future.delayed(const Duration(milliseconds: 2500));
+      if (mounted) {
+        _checkCtrl.reverse();
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted) setState(() => _agregado = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _agregando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final p     = pedido;
+    final p     = widget.pedido;
     final color = _colorEstado(p.estado);
     final hora  = '${p.fecha.hour.toString().padLeft(2, '0')}:'
         '${p.fecha.minute.toString().padLeft(2, '0')}';
     final dia   = '${p.fecha.day.toString().padLeft(2, '0')}/'
         '${p.fecha.month.toString().padLeft(2, '0')}';
+    final esEntregado = p.estado == 'Entregado';
 
     return GestureDetector(
       onTap: () => _DetalleSheet.show(context, p),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _kCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _agregado
+              ? Colors.green.withValues(alpha: 0.5)
+              : color.withValues(alpha: 0.2),
+              width: _agregado ? 1.5 : 1),
         ),
-        child: Row(children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(child: Text(_emojiEstado(p.estado),
-                style: const TextStyle(fontSize: 20))),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-              Row(children: [
-                Expanded(
-                    child: Text(
-                  p.tipoPedido == 'mesa'
-                      ? '🍽️ Mesa ${p.numeroMesa}'
-                      : '🛵 Domicilio',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13),
-                )),
-                Text('\$${p.total.toStringAsFixed(2)}',
-                    style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14)),
-              ]),
-              const SizedBox(height: 4),
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(p.estado,
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold)),
+        child: Column(children: [
+
+          // ── Fila principal ─────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 8),
-                Text('$dia  $hora',
-                    style: const TextStyle(
-                        color: Colors.white38, fontSize: 11)),
-                const Spacer(),
-                Text('${p.items.length} items',
-                    style: const TextStyle(
-                        color: Colors.white24, fontSize: 11)),
-              ]),
+                child: Center(child: Text(_emojiEstado(p.estado),
+                    style: const TextStyle(fontSize: 21))),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Row(children: [
+                  Expanded(child: Text(
+                    p.tipoPedido == 'mesa'
+                        ? '🍽️ Mesa ${p.numeroMesa}'
+                        : p.tipoPedido == 'retirar'
+                            ? '🏃 Retirar' : '🛵 Domicilio',
+                    style: const TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.bold, fontSize: 13))),
+                  Text('\$${p.total.toStringAsFixed(2)}',
+                      style: TextStyle(color: color,
+                          fontWeight: FontWeight.w900, fontSize: 14)),
+                ]),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(5)),
+                    child: Text(p.estado, style: TextStyle(
+                        color: color, fontSize: 10,
+                        fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('$dia  $hora', style: const TextStyle(
+                      color: Colors.white38, fontSize: 11)),
+                  const Spacer(),
+                  Text('${p.items.length} item${p.items.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                          color: Colors.white24, fontSize: 11)),
+                ]),
+              ])),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right,
+                  color: Colors.white12, size: 18),
             ]),
           ),
-          const Icon(Icons.chevron_right,
-              color: Colors.white12, size: 18),
+
+          // ── Preview de productos (top 3) ───────────────────────────
+          if (p.items.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Row(children: [
+                ...p.items.take(3).map((item) {
+                  final icono = item['icono'] as String? ?? '🍕';
+                  final nombre = (item['productoNombre'] ??
+                      item['nombre'] ?? '') as String;
+                  return Expanded(child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.06))),
+                    child: Row(children: [
+                      Text(icono, style: const TextStyle(fontSize: 12)),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text(nombre,
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontSize: 10),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ));
+                }),
+                if (p.items.length > 3)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8)),
+                    child: Text('+${p.items.length - 3}',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+              ]),
+            ),
+
+          // ── Botón Re-order (solo en entregados) ───────────────────
+          if (esEntregado)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: GestureDetector(
+                onTap: _reordenar,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _agregado
+                        ? Colors.green.withValues(alpha: 0.15)
+                        : _kNaranja.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _agregado
+                          ? Colors.green.withValues(alpha: 0.4)
+                          : _kNaranja.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                    if (_agregando)
+                      const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    else if (_agregado)
+                      ScaleTransition(
+                        scale: _checkScale,
+                        child: const Icon(Icons.check_circle_rounded,
+                            color: Colors.green, size: 18),
+                      )
+                    else
+                      const Icon(Icons.replay_rounded,
+                          color: _kNaranja, size: 16),
+                    const SizedBox(width: 8),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        _agregando ? 'Agregando...'
+                            : _agregado ? '¡Agregado al carrito!'
+                            : 'Pedir de nuevo  ·  \$${p.total.toStringAsFixed(2)}',
+                        key: ValueKey(_agregado ? 'ok' : _agregando ? 'loading' : 'idle'),
+                        style: TextStyle(
+                          color: _agregado ? Colors.green : _kNaranja,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
         ]),
       ),
     );
@@ -1241,19 +1411,20 @@ class _DetalleSheet extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               // Repetir pedido
-              OutlinedButton.icon(
+              ElevatedButton.icon(
                 onPressed: () => _repetirPedido(context, p),
-                icon: const Icon(Icons.replay,
-                    size: 16, color: Colors.white54),
-                label: const Text('Repetir este pedido',
-                    style: TextStyle(
-                        color: Colors.white54, fontSize: 13)),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.15)),
-                  minimumSize: const Size.fromHeight(44),
+                icon: const Icon(Icons.replay_rounded, size: 18),
+                label: Text(
+                  'Pedir de nuevo  ·  \$${p.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 14)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kNaranja,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(50),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
               ),
             ],
@@ -1265,35 +1436,41 @@ class _DetalleSheet extends StatelessWidget {
 
   void _repetirPedido(BuildContext ctx, PedidoModel p) {
     try {
-      final carrito =
-          Provider.of<CarritoProvider>(ctx, listen: false);
+      final carrito = Provider.of<CarritoProvider>(ctx, listen: false);
       for (final item in p.items) {
         final cant = (item['cantidad'] ?? 1) as int;
         final producto = {
           'id':        item['productoId'] ?? item['id'] ?? '',
           'nombre':    item['productoNombre'] ?? item['nombre'] ?? '',
-          'precio':    (item['precioUnitario'] ?? item['precio'] ?? 0.0)
-                           .toDouble(),
+          'precio':    ((item['precioUnitario'] ?? item['precio'] ?? 0.0) as num).toDouble(),
           'categoria': item['productoCategoria'] ?? item['categoria'] ?? '',
+          'icono':     item['icono'] ?? '🍕',
+          'imagenUrl': item['imagenUrl'] ?? '',
         };
-        // Agregar según cantidad
         for (int i = 0; i < cant; i++) {
           carrito.agregarProducto(producto);
         }
       }
+      HapticFeedback.heavyImpact();
       Navigator.pop(ctx);
       ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-        content:
-            Text('🛒 ${p.items.length} items agregados al carrito'),
-        backgroundColor: Colors.green,
+        content: Row(children: [
+          const Text('🛒', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            '${p.items.length} item${p.items.length == 1 ? '' : 's'} agregados al carrito',
+            style: const TextStyle(fontWeight: FontWeight.w600))),
+        ]),
+        backgroundColor: const Color(0xFF16A34A),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10)),
+            borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
         duration: const Duration(seconds: 2),
       ));
     } catch (_) {
       ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-          content: Text('No se pudo repetir el pedido'),
+          content: Text('No se pudo agregar el pedido'),
           behavior: SnackBarBehavior.floating));
     }
   }
